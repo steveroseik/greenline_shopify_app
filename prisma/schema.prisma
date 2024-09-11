@@ -1,0 +1,1084 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model shopify_session {
+  id            String    @id @db.VarChar(255)
+  shop          String    @db.VarChar(255)
+  state         String    @db.VarChar(255)
+  isOnline      Boolean   @default(dbgenerated("(b'0')")) @db.Bit(1)
+  scope         String?   @db.VarChar(255)
+  expires       DateTime? @db.Timestamp(3)
+  accessToken   String    @db.VarChar(255)
+  userId        String?   @db.VarChar(255)
+  firstName     String?   @db.VarChar(255)
+  lastName      String?   @db.VarChar(255)
+  email         String?   @db.VarChar(255)
+  accountOwner  Boolean   @default(dbgenerated("(b'0')")) @db.Bit(1)
+  locale        String?   @db.VarChar(255)
+  collaborator  Boolean   @default(dbgenerated("(b'0')")) @db.Bit(1)
+  emailVerified Boolean   @default(dbgenerated("(b'0')")) @db.Bit(1)
+}
+
+model ballot {
+  id           Int       @id @default(autoincrement())
+  merchantId   Int?
+  rackId       Int
+  level        Int
+  name         String    @db.VarChar(255)
+  createdAt    DateTime  @default(now()) @db.Timestamp(3)
+  lastModified DateTime  @default(now()) @db.Timestamp(3)
+  deletedAt    DateTime? @db.Timestamp(3)
+  rack         rack      @relation(fields: [rackId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_b21481ded566767bcd543497379")
+  box          box[]
+
+  @@index([rackId], map: "rackId")
+}
+
+model box {
+  id           Int           @id @default(autoincrement())
+  merchantId   Int?
+  ballotId     Int
+  name         String        @db.VarChar(255)
+  createdAt    DateTime      @default(now()) @db.Timestamp(3)
+  lastModified DateTime      @default(now()) @db.Timestamp(3)
+  deletedAt    DateTime?     @db.Timestamp(3)
+  ballot       ballot        @relation(fields: [ballotId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_b6c0f7a8b3384dc928b79664098")
+  item_in_box  item_in_box[]
+
+  @@index([ballotId], map: "ballotId")
+}
+
+model courier_sheet {
+  id           Int                  @id @default(autoincrement())
+  userId       String               @db.VarChar(255)
+  status       courier_sheet_status @default(In_Progress)
+  createdAt    DateTime             @default(now()) @db.Timestamp(3)
+  lastModified DateTime             @default(now()) @db.Timestamp(3)
+  user         user                 @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_5cf8d1697a480108aea845cd490")
+  sheet_order  sheet_order[]
+
+  @@index([userId], map: "userId")
+  @@map("courier-sheet")
+}
+
+model customer {
+  id        Int      @id @default(autoincrement())
+  phone     String?  @db.VarChar(255)
+  email     String?  @db.VarChar(255)
+  createdAt DateTime @default(now()) @db.Timestamp(3)
+  order     order[]
+
+  @@unique([phone, email], map: "IDX_64a01b97784000aeaebee8146c")
+}
+
+model customer_address {
+  id                        Int                         @id @default(autoincrement())
+  country                   String                      @db.VarChar(255)
+  governorateId             Int?
+  city                      String                      @db.VarChar(255)
+  state                     String?                     @db.VarChar(40)
+  streetAddress             String                      @db.VarChar(255)
+  zipCode                   String?                     @db.VarChar(10)
+  buildingNumber            String                      @default("0") @db.VarChar(10)
+  apartmentFloor            String                      @default("0") @db.VarChar(10)
+  createdAt                 DateTime                    @default(now()) @db.Timestamp(3)
+  lastModified              DateTime                    @default(now()) @db.Timestamp(3)
+  merchant_customer_address merchant_customer_address[]
+  order                     order[]
+
+  @@map("customer-address")
+}
+
+model employee {
+  id           String        @id @db.VarChar(255)
+  type         employee_type
+  currency     String        @db.VarChar(3)
+  salary       Decimal       @default(0.00) @db.Decimal(10, 2)
+  commission   Decimal       @default(0.00) @db.Decimal(10, 2)
+  createdAt    DateTime      @default(now()) @db.Timestamp(3)
+  lastModified DateTime      @default(now()) @db.Timestamp(3)
+  user         user?
+}
+
+model expense {
+  id            Int          @id @default(autoincrement())
+  type          expense_type @default(Miscellaneous)
+  fromAccountId Int
+  approvedById  String?      @db.VarChar(255)
+  amount        Decimal      @db.Decimal(10, 2)
+  receipt       String?      @db.VarChar(255)
+  comment       String?      @db.VarChar(255)
+  createdAt     DateTime     @default(now()) @db.Timestamp(3)
+
+  @@index([fromAccountId], map: "fromAccountId")
+}
+
+model financial_account {
+  id                                                                           Int                     @id @default(autoincrement())
+  name                                                                         String                  @db.VarChar(255)
+  type                                                                         financial_account_type
+  userId                                                                       String?                 @db.VarChar(255)
+  merchantId                                                                   Int?                    @unique(map: "IDX_afa2b261f0ef4e4df531d4e333")
+  balance                                                                      Decimal                 @default(0.00) @db.Decimal(10, 2)
+  createdAt                                                                    DateTime                @default(now()) @db.Timestamp(3)
+  lastModified                                                                 DateTime                @default(now()) @db.Timestamp(3)
+  deletedAt                                                                    DateTime?               @db.Timestamp(3)
+  currency                                                                     String                  @default("EGP") @db.VarChar(3)
+  user                                                                         user?                   @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_9afbbf13224b95ecf816325fc33")
+  merchant                                                                     merchant?               @relation(fields: [merchantId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_afa2b261f0ef4e4df531d4e3338")
+  financial_transaction_financial_transaction_toAccountIdTofinancial_account   financial_transaction[] @relation("financial_transaction_toAccountIdTofinancial_account")
+  financial_transaction_financial_transaction_fromAccountIdTofinancial_account financial_transaction[] @relation("financial_transaction_fromAccountIdTofinancial_account")
+
+  @@unique([userId, merchantId], map: "IDX_3b2bd4e59538923b62cedcf26e")
+  @@index([userId], map: "userId")
+  @@map("financial-account")
+}
+
+model financial_transaction {
+  id                                                                       Int                          @id @default(autoincrement())
+  type                                                                     financial_transaction_type
+  description                                                              String?                      @db.VarChar(255)
+  fromAccountId                                                            Int?
+  sheetOrderId                                                             Int?
+  toAccountId                                                              Int
+  amount                                                                   Decimal?                     @db.Decimal(10, 2)
+  receipt                                                                  String?                      @db.VarChar(255)
+  status                                                                   financial_transaction_status
+  auditedById                                                              String?                      @db.VarChar(255)
+  createdAt                                                                DateTime                     @default(now()) @db.Timestamp(3)
+  lastModified                                                             DateTime                     @default(now()) @db.Timestamp(3)
+  currency                                                                 String                       @default("EGP") @db.VarChar(3)
+  financial_account_financial_transaction_toAccountIdTofinancial_account   financial_account            @relation("financial_transaction_toAccountIdTofinancial_account", fields: [toAccountId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_2ea95968765ed9939c054062413")
+  financial_account_financial_transaction_fromAccountIdTofinancial_account financial_account?           @relation("financial_transaction_fromAccountIdTofinancial_account", fields: [fromAccountId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_b0698ef060c5bf65d05645b6e63")
+  sheet_order_financial_transaction_sheetOrderIdTosheet_order              sheet_order?                 @relation("financial_transaction_sheetOrderIdTosheet_order", fields: [sheetOrderId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_f1ff346f86d136c4254c7082366")
+  sheet_order_sheet_order_transactionIdTofinancial_transaction             sheet_order?                 @relation("sheet_order_transactionIdTofinancial_transaction")
+
+  @@index([fromAccountId], map: "fromAccountId")
+  @@index([toAccountId], map: "toAccountId")
+  @@index([sheetOrderId], map: "FK_f1ff346f86d136c4254c7082366")
+  @@map("financial-transaction")
+}
+
+model hub {
+  id             Int                   @id @default(autoincrement())
+  name           String                @db.VarChar(15)
+  gonvernorateId Int
+  location       Unsupported("point")?
+  createdAt      DateTime              @default(now()) @db.Timestamp(3)
+  updatedAt      DateTime              @default(now()) @db.Timestamp(3)
+  user           user[]
+}
+
+model inventory {
+  id                Int                   @id @default(autoincrement())
+  hubId             Int?
+  name              String                @db.VarChar(255)
+  module            Int                   @default(0)
+  location          Unsupported("point")?
+  createdAt         DateTime              @default(now()) @db.Timestamp(3)
+  lastModified      DateTime              @default(now()) @db.Timestamp(3)
+  governorateId     Int?
+  inventory_support inventory_support[]
+}
+
+model inventory_item_history {
+  id           Int                         @id @default(autoincrement())
+  itemInBoxId  Int
+  description  String                      @db.VarChar(255)
+  type         inventory_item_history_type
+  amount       Int
+  createdAt    DateTime                    @default(now()) @db.Timestamp(3)
+  lastModified DateTime                    @default(now()) @db.Timestamp(3)
+
+  @@index([itemInBoxId], map: "itemInBoxId")
+  @@map("inventory-item-history")
+}
+
+model inventory_rent {
+  id           Int                 @id @default(autoincrement())
+  merchantId   Int
+  type         inventory_rent_type
+  startDate    DateTime            @default(now()) @db.Timestamp(3)
+  lastBill     DateTime?           @db.Timestamp(3)
+  pricePerUnit Decimal             @db.Decimal(10, 2)
+  sqaureMeter  Decimal?            @db.Decimal(10, 0)
+  currency     String              @db.VarChar(3)
+  createdAt    DateTime            @default(now()) @db.Timestamp(3)
+  lastModified DateTime            @default(now()) @db.Timestamp(3)
+  deletedAt    DateTime?           @db.Timestamp(3)
+
+  @@map("inventory-rent")
+}
+
+model inventory_support {
+  id            Int       @id @default(autoincrement())
+  inventoryId   Int
+  governorateId Int
+  zoneId        Int
+  inventory     inventory @relation(fields: [inventoryId], references: [id], onUpdate: Restrict, map: "FK_383d06b6150717b195551bba1b4")
+
+  @@index([inventoryId], map: "inventoryId")
+  @@map("inventory-support")
+}
+
+model item {
+  id           Int            @id @default(autoincrement())
+  merchantId   Int
+  name         String         @db.VarChar(255)
+  shopifyId    String?        @db.VarChar(255)
+  description  String?        @db.VarChar(255)
+  currency     String         @db.VarChar(3)
+  imageUrl     String?        @db.VarChar(255)
+  createdAt    DateTime       @default(now()) @db.Timestamp(3)
+  lastModified DateTime       @default(now()) @db.Timestamp(3)
+  item_variant item_variant[]
+
+  @@index([merchantId], map: "merchantId")
+}
+
+model item_in_box {
+  id            Int          @id @default(autoincrement())
+  inventoryId   Int
+  merchantId    Int
+  itemVariantId Int
+  boxId         Int
+  count         Int
+  minCount      Int
+  createdAt     DateTime     @default(now()) @db.Timestamp(3)
+  lastModified  DateTime     @default(now()) @db.Timestamp(3)
+  deletedAt     DateTime?    @db.Timestamp(3)
+  item_variant  item_variant @relation(fields: [itemVariantId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_542429855d66147c23baa5cc2cd")
+  box           box          @relation(fields: [boxId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_fe7ed7836ee4714bdcd98e3e59a")
+
+  @@index([boxId], map: "boxId")
+  @@index([itemVariantId], map: "itemVariantId")
+  @@map("item-in-box")
+}
+
+model merchant {
+  id                         Int                          @id @default(autoincrement())
+  shopifyShop                String?                      @db.VarChar(255)
+  name                       String                       @db.VarChar(255)
+  currency                   String                       @default("EGP") @db.VarChar(3)
+  includesVAT                Boolean
+  threshold                  Decimal                      @default(3.00) @db.Decimal(10, 2)
+  overShipping               Decimal                      @default(10.00) @db.Decimal(10, 2)
+  createdAt                  DateTime                     @default(now()) @db.Timestamp(3)
+  lastModified               DateTime                     @default(now()) @db.Timestamp(3)
+  taxId                      String?                      @db.VarChar(255)
+  bankNumber                 String?                      @db.VarChar(255)
+  addressId                  Int?
+  ownerName                  String?                      @db.VarChar(255)
+  financial_account          financial_account?
+  item_variant               item_variant[]
+  merchant_domestic_shipping merchant_domestic_shipping[]
+  order                      order[]
+  user                       user[]
+}
+
+model merchant_customer {
+  id           Int      @id @default(autoincrement())
+  merchantId   Int
+  customerId   Int
+  customerName String   @db.VarChar(255)
+  createdAt    DateTime @default(now()) @db.Timestamp(3)
+
+  @@unique([merchantId, customerId], map: "IDX_9ec978b0eed82c4abd11468b5b")
+  @@map("merchant-customer")
+}
+
+model merchant_customer_address {
+  merchantId       Int
+  customerId       Int
+  addressId        Int
+  customer_address customer_address @relation(fields: [addressId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_aa9615b1c8ca9a02fcf2f44c3af")
+
+  @@id([merchantId, customerId, addressId])
+  @@unique([merchantId, customerId, addressId], map: "IDX_623d93315556b08dd1be7f939c")
+  @@index([addressId], map: "FK_aa9615b1c8ca9a02fcf2f44c3af")
+  @@map("merchant-customer-address")
+}
+
+model merchant_visit {
+  id           Int                   @id @default(autoincrement())
+  type         merchant_visit_type
+  merchantId   Int
+  fromDate     DateTime              @db.Timestamp(3)
+  toDate       DateTime              @db.Timestamp(3)
+  status       merchant_visit_status @default(Scheduled)
+  createdAt    DateTime              @default(now()) @db.Timestamp(3)
+  lastModified DateTime              @default(now()) @db.Timestamp(3)
+  deletedAt    DateTime              @default(now()) @db.Timestamp(3)
+
+  @@map("merchant-visit")
+}
+
+model migrations {
+  id        Int    @id @default(autoincrement())
+  timestamp BigInt
+  name      String @db.VarChar(255)
+}
+
+model order {
+  id               Int               @id @default(autoincrement())
+  otherId          Int?
+  currency         String            @default("EGP") @db.VarChar(3)
+  previousOrderId  Int?              @unique(map: "REL_e1ac9c252ed1e2f8ae7cc3ca75")
+  type             order_type        @default(Delivery)
+  paymentType      order_paymentType @default(Cash)
+  status           order_status      @default(Idle)
+  customerId       Int
+  addressId        Int
+  merchantId       Int
+  isDomestic       Boolean           @default(dbgenerated("(b'1')")) @db.Bit(1)
+  originalPrice    Boolean           @default(dbgenerated("(b'1')")) @db.Bit(1)
+  canBeEdited      Boolean           @default(dbgenerated("(b'0')")) @db.Bit(1)
+  shippingPrice    Decimal           @default(0.00) @db.Decimal(10, 2)
+  weight           Decimal           @default(0.00) @db.Decimal(10, 2)
+  price            Decimal           @db.Decimal(10, 2)
+  canOpen          Boolean           @default(dbgenerated("(b'0')")) @db.Bit(1)
+  fragile          Boolean           @default(dbgenerated("(b'0')")) @db.Bit(1)
+  deliveryPart     Boolean           @default(dbgenerated("(b'0')")) @db.Bit(1)
+  orderDate        DateTime          @default(now()) @db.Timestamp(3)
+  createdAt        DateTime          @default(now()) @db.Timestamp(3)
+  lastModified     DateTime          @default(now()) @db.Timestamp(3)
+  customer         customer          @relation(fields: [customerId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_124456e637cca7a415897dce659")
+  merchant         merchant          @relation(fields: [merchantId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_293ad75db4c3b2aa62996c75ad1")
+  customer_address customer_address  @relation(fields: [addressId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_73f9a47e41912876446d047d015")
+  order            order?            @relation("orderToorder", fields: [previousOrderId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_e1ac9c252ed1e2f8ae7cc3ca75a")
+  other_order      order?            @relation("orderToorder")
+  order_history    order_history[]
+  order_item       order_item[]
+  sheet_order      sheet_order?
+
+  @@index([customerId], map: "FK_124456e637cca7a415897dce659")
+  @@index([addressId], map: "FK_73f9a47e41912876446d047d015")
+  @@index([merchantId], map: "merchantId")
+}
+
+model order_item {
+  id               Int               @id @default(autoincrement())
+  orderId          Int
+  itemVariantId    Int
+  count            Int
+  unitPrice        Decimal           @db.Decimal(10, 2)
+  unitDiscount     Decimal           @db.Decimal(10, 2)
+  partialCount     Int?
+  inventoryId      Int?
+  createdAt        DateTime          @default(now()) @db.Timestamp(3)
+  lastModified     DateTime          @default(now()) @db.Timestamp(3)
+  returnCount      Int               @default(0)
+  inventory_return inventory_return?
+  item_return      item_return?
+  order            order             @relation(fields: [orderId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_29ee234059c3b7a783bddac5bf8")
+  item_variant     item_variant      @relation(fields: [itemVariantId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_c0c551d1822b6df1f352f34dc45")
+
+  @@unique([orderId, itemVariantId], map: "IDX_efbb7b2e09636e89b33af5f5e4")
+  @@index([itemVariantId], map: "itemVariantId")
+  @@map("order-item")
+}
+
+model order_relation {
+  firstOrderId  Int
+  secondOrderId Int
+  createdAt     DateTime @default(now()) @db.Timestamp(3)
+
+  @@id([firstOrderId, secondOrderId])
+  @@index([secondOrderId], map: "secondOrderId")
+  @@map("order-relation")
+}
+
+model rack {
+  id           Int       @id @default(autoincrement())
+  merchantId   Int?
+  inventoryId  Int
+  levels       Int       @default(1)
+  name         String    @db.VarChar(255)
+  createdAt    DateTime  @default(now()) @db.Timestamp(3)
+  lastModified DateTime  @default(now()) @db.Timestamp(3)
+  deletedAt    DateTime? @db.Timestamp(3)
+  ballot       ballot[]
+
+  @@index([inventoryId], map: "inventoryId")
+}
+
+model request {
+  id           Int            @id @default(autoincrement())
+  type         request_type   @default(Notification)
+  priority     Int
+  fromId       String         @db.VarChar(255)
+  description  String         @db.VarChar(255)
+  extraData    String?        @db.VarChar(255)
+  status       request_status
+  createdAt    DateTime       @default(now()) @db.Timestamp(3)
+  lastModified DateTime       @default(now()) @db.Timestamp(3)
+
+  @@index([fromId], map: "fromId")
+}
+
+model request_status_history {
+  id        Int                           @id @default(autoincrement())
+  requestId Int
+  status    request_status_history_status
+  userId    Int
+  createdAt DateTime                      @default(now()) @db.Timestamp(3)
+
+  @@index([requestId], map: "requestId")
+  @@map("request-status-history")
+}
+
+model role {
+  id           Int       @id @default(autoincrement())
+  name         String    @db.VarChar(255)
+  type         role_type
+  description  String    @db.VarChar(255)
+  createdAt    DateTime  @default(now()) @db.Timestamp(3)
+  lastModified DateTime  @default(now()) @db.Timestamp(3)
+}
+
+model sheet_order {
+  id                                                                     Int                           @id @default(autoincrement())
+  sheetId                                                                Int
+  orderId                                                                Int                           @unique(map: "IDX_bf19ed3d976f112b5639fc8960")
+  adminPass                                                              Boolean                       @default(dbgenerated("(b'0')")) @db.Bit(1)
+  financePass                                                            Boolean                       @default(dbgenerated("(b'0')")) @db.Bit(1)
+  amountCollected                                                        Decimal?                      @db.Decimal(10, 2)
+  transactionId                                                          Int?                          @unique(map: "REL_556942860602800c69caba7ce2")
+  createdAt                                                              DateTime                      @default(now()) @db.Timestamp(3)
+  lastModified                                                           DateTime                      @default(now()) @db.Timestamp(3)
+  shippingCollected                                                      sheet_order_shippingCollected @default(Not_Collected)
+  financial_transaction_financial_transaction_sheetOrderIdTosheet_order  financial_transaction[]       @relation("financial_transaction_sheetOrderIdTosheet_order")
+  financial_transaction_sheet_order_transactionIdTofinancial_transaction financial_transaction?        @relation("sheet_order_transactionIdTofinancial_transaction", fields: [transactionId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_556942860602800c69caba7ce26")
+  order                                                                  order                         @relation(fields: [orderId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_bf19ed3d976f112b5639fc89604")
+  courier_sheet                                                          courier_sheet                 @relation(fields: [sheetId], references: [id], onUpdate: Restrict, map: "FK_d347664ae2df273959910ae62ec")
+
+  @@index([orderId], map: "orderId")
+  @@index([sheetId], map: "sheetId")
+  @@map("sheet-order")
+}
+
+model sheet_order_status_history {
+  id           Int                               @id @default(autoincrement())
+  sheetOrderId Int
+  status       sheet_order_status_history_status
+  description  String                            @default("") @db.VarChar(255)
+  userId       String                            @db.VarChar(255)
+  createdAt    DateTime                          @default(now()) @db.Timestamp(6)
+
+  @@index([sheetOrderId], map: "sheetOrderId")
+  @@index([userId], map: "userId")
+  @@map("sheet-order-status-history")
+}
+
+model user {
+  id                String              @id @db.VarChar(255)
+  type              user_type           @default(Customer)
+  hubId             Int?
+  merchantId        Int?
+  inventoryId       Int?
+  name              String              @db.VarChar(255)
+  email             String              @unique(map: "IDX_e12875dfb3b1d92d7d7c5377e2") @db.VarChar(255)
+  phone             String              @db.VarChar(15)
+  birthdate         DateTime            @db.DateTime(0)
+  refreshToken      String?             @db.VarChar(64)
+  createdAt         DateTime            @default(now()) @db.Timestamp(3)
+  lastModified      DateTime            @default(now()) @db.Timestamp(3)
+  deletedAt         DateTime?           @db.Timestamp(3)
+  employeeId        String?             @unique(map: "REL_ab4a80281f1e8d524714e00f38") @db.VarChar(255)
+  courier_sheet     courier_sheet[]
+  financial_account financial_account[]
+  hub               hub?                @relation(fields: [hubId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_126cdfc5f79e8069cd41c6b4081")
+  merchant          merchant?           @relation(fields: [merchantId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_48a28cfd87e34f3df960bb374ba")
+  employee          employee?           @relation(fields: [employeeId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_ab4a80281f1e8d524714e00f38f")
+  user_role         user_role[]
+
+  @@index([hubId], map: "FK_126cdfc5f79e8069cd41c6b4081")
+  @@index([merchantId], map: "FK_48a28cfd87e34f3df960bb374ba")
+}
+
+model user_role {
+  userId String @db.VarChar(255)
+  roleId Int
+  user   user   @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_c7c1bb73f89bbdd47b4afb1bab9")
+
+  @@id([userId, roleId])
+  @@index([userId], map: "userId")
+  @@map("user-role")
+}
+
+model discount {
+  id            Int           @id @default(autoincrement())
+  type          discount_type
+  startDiscount DateTime      @default(now()) @db.Timestamp(3)
+  endDiscount   DateTime      @default(now()) @db.Timestamp(3)
+  createdAt     DateTime      @default(now()) @db.Timestamp(3)
+}
+
+model domestic_governorate {
+  id         Int    @id @default(autoincrement())
+  name       String @db.VarChar(255)
+  arabicName String @db.VarChar(255)
+
+  @@map("domestic-governorate")
+}
+
+model domestic_shipping {
+  id                         Int                          @id @default(autoincrement())
+  total                      Decimal                      @db.Decimal(10, 2)
+  vat                        Decimal                      @db.Decimal(10, 2)
+  base                       Decimal                      @default(20.00) @db.Decimal(10, 2)
+  extra                      Decimal                      @db.Decimal(10, 2)
+  createdAt                  DateTime                     @default(now()) @db.Timestamp(3)
+  lastModified               DateTime                     @default(now()) @db.Timestamp(3)
+  post                       Decimal                      @db.Decimal(10, 2)
+  merchant_domestic_shipping merchant_domestic_shipping[]
+
+  @@map("domestic-shipping")
+}
+
+model item_variant {
+  id                  Int                   @id @default(autoincrement())
+  sku                 String                @unique(map: "IDX_ccddccfa6fec9116e59c2236cf") @db.VarChar(255)
+  name                String?               @db.VarChar(255)
+  shopifyId           String?               @db.VarChar(255)
+  merchantSku         String                @db.VarChar(255)
+  merchantId          Int
+  itemId              Int
+  isEnabled           Boolean               @default(dbgenerated("(b'1')")) @db.Bit(1)
+  imageUrl            String                @db.VarChar(255)
+  price               Decimal               @db.Decimal(10, 2)
+  weight              Decimal?              @db.Decimal(10, 2)
+  createdAt           DateTime              @default(now()) @db.Timestamp(3)
+  lastModified        DateTime              @default(now()) @db.Timestamp(3)
+  deletedAt           DateTime?             @db.Timestamp(3)
+  item_in_box         item_in_box[]
+  merchant            merchant              @relation(fields: [merchantId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_2becf8705592d6e703e001be723")
+  item                item                  @relation(fields: [itemId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_320f2483a9a7a6c8d9e2217bb3b")
+  item_variant_option item_variant_option[]
+  order_item          order_item[]
+
+  @@unique([merchantSku, merchantId], map: "IDX_e8d2a9ac37b40ed052b894dffa")
+  @@index([merchantId], map: "FK_2becf8705592d6e703e001be723")
+  @@index([itemId], map: "FK_320f2483a9a7a6c8d9e2217bb3b")
+  @@map("item-variant")
+}
+
+model item_variant_option {
+  id              Int            @id @default(autoincrement())
+  itemVariantId   Int
+  variantNameId   Int
+  variantOptionId Int
+  createdAt       DateTime       @default(now()) @db.Timestamp(3)
+  lastModified    DateTime       @default(now()) @db.Timestamp(3)
+  variant_option  variant_option @relation(fields: [variantOptionId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_35784b4e2d3f73949fd614d6109")
+  item_variant    item_variant   @relation(fields: [itemVariantId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_8c889db18590c89e9fd3d3349aa")
+  variant_name    variant_name   @relation(fields: [variantNameId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_8ce23bb58ae1f6f30b062a3acc2")
+
+  @@unique([itemVariantId, variantNameId, variantOptionId], map: "IDX_67dd5eb7e3dc02ae434a1dea74")
+  @@index([variantOptionId], map: "FK_35784b4e2d3f73949fd614d6109")
+  @@index([variantNameId], map: "FK_8ce23bb58ae1f6f30b062a3acc2")
+  @@map("item-variant-option")
+}
+
+model variant_name {
+  id                  Int                   @id @default(autoincrement())
+  name                String                @db.VarChar(255)
+  item_variant_option item_variant_option[]
+
+  @@map("variant-name")
+}
+
+model variant_option {
+  id                  Int                   @id @default(autoincrement())
+  value               String                @db.VarChar(255)
+  colorCode           String?               @db.VarChar(50)
+  item_variant_option item_variant_option[]
+
+  @@map("variant-option")
+}
+
+model financial_transaction_history {
+  id            Int                                  @id @default(autoincrement())
+  transactionId Int
+  status        financial_transaction_history_status
+  auditedById   String?                              @db.VarChar(255)
+  description   String?                              @db.VarChar(255)
+  createdAt     DateTime                             @default(now()) @db.Timestamp(3)
+
+  @@map("financial-transaction-history")
+}
+
+model inventory_return {
+  id            Int                     @id @default(autoincrement())
+  inventoryId   Int
+  hubId         Int
+  restockedToId Int?
+  packageId     Int?
+  orderItemId   Int                     @unique(map: "REL_cd7ea81405de27ed292425cda5")
+  status        inventory_return_status @default(Idle)
+  createdAt     DateTime                @default(now()) @db.Timestamp(3)
+  lastModified  DateTime                @default(now()) @db.Timestamp(3)
+  order_item    order_item              @relation(fields: [orderItemId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_cd7ea81405de27ed292425cda5d")
+
+  @@map("inventory-return")
+}
+
+model item_return {
+  id             Int             @id @default(autoincrement())
+  orderItemId    Int             @unique(map: "REL_732d5223ac7a11dcf9739671a3")
+  hubId          Int
+  merchantId     Int
+  packageId      Int?
+  createdAt      DateTime        @default(now()) @db.Timestamp(3)
+  count          Int
+  return_package return_package? @relation(fields: [packageId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_450f3125a47db1226445e52e0fb")
+  order_item     order_item      @relation(fields: [orderItemId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_732d5223ac7a11dcf9739671a3a")
+
+  @@index([packageId], map: "FK_450f3125a47db1226445e52e0fb")
+  @@map("item-return")
+}
+
+model order_history {
+  id           Int                  @id @default(autoincrement())
+  orderId      Int
+  userId       String               @db.VarChar(255)
+  status       order_history_status @default(Idle)
+  fromHubId    Int?
+  toHubId      Int?
+  inventoryId  Int?
+  description  String?              @db.VarChar(255)
+  createdAt    DateTime             @default(now()) @db.Timestamp(3)
+  lastModified DateTime             @default(now()) @db.Timestamp(3)
+  order        order                @relation(fields: [orderId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_6a3011886bb22ddce9cfbc43fea")
+
+  @@index([orderId], map: "orderId")
+  @@map("order-history")
+}
+
+model return_package {
+  id            Int                   @id @default(autoincrement())
+  sku           String                @db.VarChar(255)
+  type          return_package_type
+  hubId         Int
+  courierId     String?               @db.VarChar(255)
+  toInventoryId Int?
+  toMerchantId  Int?
+  status        return_package_status
+  createdAt     DateTime              @default(now())
+  lastModified  DateTime              @default(now())
+  item_return   item_return[]
+
+  @@map("return-package")
+}
+
+model return_package_history {
+  id              Int                           @id @default(autoincrement())
+  returnPackageId Int
+  status          return_package_history_status
+  description     String?                       @db.Text
+  transferredToId Int?
+
+  @@map("return-package-history")
+}
+
+model inventory_rent_transaction {
+  id         Int                             @id @default(autoincrement())
+  merchantId Int
+  quantity   Int                             @default(1)
+  type       inventory_rent_transaction_type
+  createdAt  DateTime                        @default(now()) @db.Timestamp(3)
+
+  @@map("inventory-rent-transaction")
+}
+
+model merchant_domestic_shipping {
+  id                 Int                                  @id @default(autoincrement())
+  merchantId         Int
+  governorateId      Int
+  domesticShippingId Int
+  createdAt          DateTime                             @default(now()) @db.Timestamp(3)
+  lastModified       DateTime                             @default(now()) @db.Timestamp(3)
+  orderType          merchant_domestic_shipping_orderType
+  domestic_shipping  domestic_shipping                    @relation(fields: [domesticShippingId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_34d133e544432787f30e92afab4")
+  merchant           merchant                             @relation(fields: [merchantId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_a8b689657b528beb076d676c430")
+
+  @@unique([merchantId, governorateId, orderType], map: "IDX_64e99bd1cef5fd9e58441b39b5")
+  @@index([domesticShippingId], map: "FK_34d133e544432787f30e92afab4")
+  @@map("merchant-domestic-shipping")
+}
+
+enum merchant_visit_type {
+  Order_Pickup  @map("Order Pickup")
+  Order_Returns @map("Order Returns")
+  Supply_Pickup @map("Supply Pickup")
+
+  @@map("merchant-visit_type")
+}
+
+enum employee_type {
+  Admin
+  Finance
+  Inventory
+  Courier
+  Customer_Service @map("Customer Service")
+}
+
+enum request_type {
+  Notification
+  Confirmation
+  Authorization
+  Subscription
+  Verification
+  Reminder
+  Invitation
+  Password_Reset     @map("Password Reset")
+  Account_Update     @map("Account Update")
+  Transaction_Update @map("Transaction Update")
+  Policy_Update      @map("Policy Update")
+  Announcement
+  Feedback
+  Support
+  Marketing
+  Survey
+  Report
+  Inquiry
+  Appointment
+  Request
+  Order_Problem      @map("Order Problem")
+  Payment_Reminder   @map("Payment Reminder")
+  Invoice
+  Other
+}
+
+enum expense_type {
+  Salary
+  Rent
+  Utilities
+  Office_Supplies          @map("Office Supplies")
+  Vehicle_Maintenance      @map("Vehicle Maintenance")
+  Fuel
+  Insurance
+  Equipment_Purchase       @map("Equipment Purchase")
+  Marketing
+  Software_Subscriptions   @map("Software Subscriptions")
+  Legal_Fees               @map("Legal Fees")
+  Training
+  Taxes
+  Loan_Repayments          @map("Loan Repayments")
+  Interest
+  Office_Rent              @map("Office Rent")
+  Warehouse_Rent           @map("Warehouse Rent")
+  Travel_Expenses          @map("Travel Expenses")
+  Professional_Services    @map("Professional Services")
+  Maintenance
+  Security_Services        @map("Security Services")
+  Packaging_Materials      @map("Packaging Materials")
+  Cleaning_Services        @map("Cleaning Services")
+  Waste_Disposal           @map("Waste Disposal")
+  Office_Equipment         @map("Office Equipment")
+  Internet_Services        @map("Internet Services")
+  Telecommunication
+  Office_Furniture         @map("Office Furniture")
+  Membership_Fees          @map("Membership Fees")
+  Professional_Development @map("Professional Development")
+  Vehicle_Lease            @map("Vehicle Lease")
+  Advertising
+  Delivery_Expenses        @map("Delivery Expenses")
+  Miscellaneous
+}
+
+enum user_type {
+  Employee
+  Merchant
+  Customer
+}
+
+enum financial_account_type {
+  Hub
+  User
+  Merchant
+  Bank
+  Department
+
+  @@map("financial-account_type")
+}
+
+enum courier_sheet_status {
+  In_Progress                  @map("In Progress")
+  Waiting_For_Admin_Approval   @map("Waiting For Admin Approval")
+  Waiting_For_Finance_Approval @map("Waiting For Finance Approval")
+  Completed
+
+  @@map("courier-sheet_status")
+}
+
+enum sheet_order_status_history_status {
+  Admin_Accepted   @map("Admin Accepted")
+  Admin_Rejected   @map("Admin Rejected")
+  Finance_Accepted @map("Finance Accepted")
+  Finance_Rejected @map("Finance Rejected")
+
+  @@map("sheet-order-status-history_status")
+}
+
+enum request_status_history_status {
+  Sent
+  Pending
+  Read
+  Rejected
+  Accepted
+  Expired
+
+  @@map("request-status-history_status")
+}
+
+enum inventory_rent_type {
+  Item
+  Order
+  Box
+  Ballot
+  Rack
+  Inventory
+  Meter
+
+  @@map("inventory-rent_type")
+}
+
+enum request_status {
+  Sent
+  Pending
+  Read
+  Rejected
+  Accepted
+  Expired
+}
+
+enum merchant_visit_status {
+  Scheduled
+  Assigned_to_Courier @map("Assigned to Courier")
+  On_The_Way          @map("On The Way")
+  Completed
+  Canceled
+  Rescheduled
+  Returned
+  Supplies_Delivered  @map("Supplies Delivered")
+
+  @@map("merchant-visit_status")
+}
+
+enum discount_type {
+  Fixed
+  Percentage
+  Free_Shipping @map("Free Shipping")
+}
+
+enum return_package_history_status {
+  Idle
+  Assigned_To_Courier @map("Assigned To Courier")
+  Transferring
+  Delivered
+
+  @@map("return-package-history_status")
+}
+
+enum financial_transaction_history_status {
+  Pending_Sender         @map("Pending Sender")
+  Pending_Receiver       @map("Pending Receiver")
+  Processing
+  Processing_By_Sender   @map("Processing By Sender")
+  Processing_By_Receiver @map("Processing By Receiver")
+  Rejected
+  Rejected_By_Sender     @map("Rejected By Sender")
+  Rejected_By_Receiver   @map("Rejected By Receiver")
+  Completed
+  Cancelled_By_Sender    @map("Cancelled By Sender")
+  Cancelled_By_Receiver  @map("Cancelled By Receiver")
+  Cancelled
+  Failed
+  Pending_Internal       @map("Pending Internal")
+  Transferred
+
+  @@map("financial-transaction-history_status")
+}
+
+enum return_package_type {
+  Inventory
+  Merchant
+
+  @@map("return-package_type")
+}
+
+enum inventory_return_status {
+  Idle
+  Returned_To_Box @map("Returned To Box")
+
+  @@map("inventory-return_status")
+}
+
+enum return_package_status {
+  Idle
+  Assigned_To_Courier @map("Assigned To Courier")
+  Transferring
+  Delivered
+
+  @@map("return-package_status")
+}
+
+enum financial_transaction_status {
+  Pending_Sender         @map("Pending Sender")
+  Pending_Receiver       @map("Pending Receiver")
+  Processing
+  Processing_By_Sender   @map("Processing By Sender")
+  Processing_By_Receiver @map("Processing By Receiver")
+  Rejected
+  Rejected_By_Sender     @map("Rejected By Sender")
+  Rejected_By_Receiver   @map("Rejected By Receiver")
+  Completed
+  Cancelled_By_Sender    @map("Cancelled By Sender")
+  Cancelled_By_Receiver  @map("Cancelled By Receiver")
+  Cancelled
+  Failed
+  Pending_Internal       @map("Pending Internal")
+  Transferred
+
+  @@map("financial-transaction_status")
+}
+
+enum inventory_rent_transaction_type {
+  Item
+  Order
+  Box
+  Ballot
+  Rack
+  Inventory
+  Meter
+
+  @@map("inventory-rent-transaction_type")
+}
+
+enum financial_transaction_type {
+  Deposit
+  Withdrawal
+  Order_Collection            @map("Order Collection")
+  Shipping_Collection         @map("Shipping Collection")
+  Courier_Collection          @map("Courier Collection")
+  Courier_Collection_Transfer @map("Courier Collection Transfer")
+  Merchant_Order_Payment      @map("Merchant Order Payment")
+  Courier_Cancellation        @map("Courier Cancellation")
+  Transfer
+  Refund
+  Adjustment
+  Interest
+  Donation
+  Conversion
+  Reward
+  Subscription
+  Inventory_Rent              @map("Inventory Rent")
+  Payment
+  Taxes
+  Other
+
+  @@map("financial-transaction_type")
+}
+
+enum role_type {
+  Super_Admin    @map("Super Admin")
+  Inventory
+  Merchant
+  Finance
+  Courier
+  Customer
+  Requests
+  Order
+  Management
+  Return_Package @map("Return Package")
+}
+
+enum order_history_status {
+  Idle
+  Assembled
+  Packed
+  Dispatched
+  Picked_Up                  @map("Picked Up")
+  Arrived_At_Sort_Facilities @map("Arrived At Sort Facilities")
+  Arrived_At_Hub             @map("Arrived At Hub")
+  Transferred
+  Assigned_To_Courier        @map("Assigned To Courier")
+  Delivered
+  Partially_Delivered        @map("Partially Delivered")
+  Cancelled
+  Failed_Delivery_Attempt    @map("Failed Delivery Attempt")
+  Postponed
+  Return_Requested           @map("Return Requested")
+  Returned
+  Partially_Returned         @map("Partially Returned")
+  Lost
+
+  @@map("order-history_status")
+}
+
+enum inventory_item_history_type {
+  Import
+  Return
+  Order_Return   @map("Order Return")
+  Export
+  Order_Assembly @map("Order Assembly")
+
+  @@map("inventory-item-history_type")
+}
+
+enum order_type {
+  Delivery
+  Exchange
+  Return
+  Free_Shipping @map("Free Shipping")
+}
+
+enum order_paymentType {
+  Cash
+  Card
+}
+
+enum merchant_domestic_shipping_orderType {
+  Delivery
+  Exchange
+  Return
+  Free_Shipping @map("Free Shipping")
+
+  @@map("merchant-domestic-shipping_orderType")
+}
+
+enum order_status {
+  Idle
+  Assembled
+  Packed
+  Dispatched
+  Picked_Up                  @map("Picked Up")
+  Arrived_At_Sort_Facilities @map("Arrived At Sort Facilities")
+  Arrived_At_Hub             @map("Arrived At Hub")
+  Transferred
+  Assigned_To_Courier        @map("Assigned To Courier")
+  Delivered
+  Partially_Delivered        @map("Partially Delivered")
+  Cancelled
+  Failed_Delivery_Attempt    @map("Failed Delivery Attempt")
+  Postponed
+  Return_Requested           @map("Return Requested")
+  Returned
+  Partially_Returned         @map("Partially Returned")
+  Lost
+}
+
+enum sheet_order_shippingCollected {
+  Collected
+  Not_Collected @map("Not Collected")
+  Dismissed
+
+  @@map("sheet-order_shippingCollected")
+}
