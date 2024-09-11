@@ -22,7 +22,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return json({ apiKey: process.env.SHOPIFY_API_KEY || "" });
 };
 const endpoint = true
-  ? "http://localhost/graphql"
+  ? "http://localhost:3001/graphql"
   : `http://localhost:3001/graphql`;
 export const graphqlClient = new GraphQLClient(endpoint, {
   headers: {
