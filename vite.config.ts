@@ -49,6 +49,13 @@ export default defineConfig({
     }),
     tsconfigPaths(),
   ],
+  resolve: {
+    alias: {
+      crypto: "crypto-browserify",
+      stream: "stream-browserify",
+      buffer: "buffer",
+    },
+  },
   build: {
     assetsInlineLimit: 0,
   },
