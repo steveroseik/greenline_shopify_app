@@ -48,10 +48,10 @@ export default defineConfig({
       ignoredRouteFiles: ["**/.*"],
     }),
     tsconfigPaths(),
-    nodePolyfills({
-      // Whether to polyfill `node:` protocol imports.
-      protocolImports: true,
-    }),
+    // nodePolyfills({
+    //   // Whether to polyfill `node:` protocol imports.
+    //   protocolImports: true,
+    // }),
   ],
   ssr: {
     noExternal: ["other-package-names-if-any"],
