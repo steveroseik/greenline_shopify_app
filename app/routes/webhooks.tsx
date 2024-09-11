@@ -6,17 +6,22 @@ import { gql } from "graphql-request";
 import { Session } from "@shopify/shopify-api";
 import { Shopify, ShopifyHeader } from "@shopify/shopify-api";
 import { role_type } from "@prisma/client";
-import crypto from "crypto";
+import CryptoJS from "crypto-js";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { topic, shop, session, admin, payload } =
     await authenticate.webhook(request);
 
   const signature = request.headers.get("x-shopify-hmac-sha256");
-  const generatedSignature = crypto
-    .createHmac("SHA256", process.env.SHOPIFY_API_SECRET!)
-    .update(JSON.stringify(request.body), "utf8")
-    .digest("base64");
+  const requestBodyString = JSON.stringify(request.body);
+
+  const secretKey = process.env.SHOPIFY_API_SECRET;
+
+  // Generate the HMAC signature using crypto-js
+  const generatedSignature = CryptoJS.HmacSHA256(
+    requestBodyString,
+    secretKey,
+  ).toString(CryptoJS.enc.Base64);
 
   if (signature !== generatedSignature) {
     return new Response("Invalid signature", { status: 401 });

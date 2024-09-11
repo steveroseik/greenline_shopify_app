@@ -3,7 +3,7 @@
 client_id = "b07d3deef8c6b0b1b0b50aa79aa2350b"
 name = "greenline-app"
 handle = "greenline-app"
-application_url = "https://heard-hon-replacement-minimum.trycloudflare.com"
+application_url = "https://lat-powder-red-shipments.trycloudflare.com"
 embedded = true
 
 [build]
@@ -17,9 +17,9 @@ scopes = "customer_read_customers,read_customers,read_discounts,read_draft_order
 
 [auth]
 redirect_urls = [
-  "https://heard-hon-replacement-minimum.trycloudflare.com/auth/callback",
-  "https://heard-hon-replacement-minimum.trycloudflare.com/auth/shopify/callback",
-  "https://heard-hon-replacement-minimum.trycloudflare.com/api/auth/callback"
+  "https://lat-powder-red-shipments.trycloudflare.com/auth/callback",
+  "https://lat-powder-red-shipments.trycloudflare.com/auth/shopify/callback",
+  "https://lat-powder-red-shipments.trycloudflare.com/api/auth/callback"
 ]
 
 [webhooks]
