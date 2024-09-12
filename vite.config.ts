@@ -48,27 +48,8 @@ export default defineConfig({
       ignoredRouteFiles: ["**/.*"],
     }),
     tsconfigPaths(),
-    // nodePolyfills({
-    //   // Whether to polyfill `node:` protocol imports.
-    //   protocolImports: true,
-    // }),
   ],
-  ssr: {
-    noExternal: ["other-package-names-if-any"],
-  },
-  resolve: {
-    alias: {
-      crypto: "crypto-browserify",
-      buffer: "buffer",
-    },
-  },
   build: {
     assetsInlineLimit: 0,
   },
 }) satisfies UserConfig;
-function nodePolyfills(arg0: {
-  // Whether to polyfill `node:` protocol imports.
-  protocolImports: boolean;
-}): import("vite").PluginOption {
-  throw new Error("Function not implemented.");
-}

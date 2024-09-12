@@ -36,6 +36,7 @@ import { graphqlClient } from "./app";
 import { createOrdersMutation } from "~/queries/createOrders";
 import { i } from "node_modules/vite/dist/node/types.d-aGj9QkWt";
 import { ShopSession, useShopSession } from "~/session/shop-session";
+import { AdminApiContext } from "@shopify/shopify-app-remix/server";
 
 // export const loader: LoaderFunction = async ({ request }) => {
 //   const { session } = await authenticate.admin(request);
@@ -73,7 +74,7 @@ import { ShopSession, useShopSession } from "~/session/shop-session";
 export let lastQuery = undefined;
 
 export const action: ActionFunction = async ({ request }) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   const { shop, accessToken } = session;
 
   const formData = await request.formData();
@@ -81,9 +82,9 @@ export const action: ActionFunction = async ({ request }) => {
   console.log("ACTION", action);
   switch (action) {
     case "fetchOrders":
-      return paginate(formData, accessToken, shop);
+      return paginate(formData, accessToken, admin, shop);
     case "refresh":
-      return paginate(formData, accessToken, shop, true);
+      return paginate(formData, accessToken, admin, shop, true);
     case "syncOrders":
       return syncOrders(formData, accessToken, shop);
   }
@@ -123,6 +124,7 @@ async function syncOrders(
 async function paginate(
   formData: FormData,
   accessToken: string,
+  admin: AdminApiContext,
   shop: string,
   refresh?: boolean,
 ) {
@@ -150,19 +152,23 @@ async function paginate(
   console.log("QUERY", lastQuery);
 
   try {
-    const response = await fetch(
-      `https://${shop}/admin/api/${apiVersion}/graphql.json`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Shopify-Access-Token": accessToken!,
-        },
-        body: JSON.stringify({
-          query,
-        }),
-      },
-    );
+    console.log("ACCESSTOKEN!!!!", accessToken);
+
+    const response = await admin.graphql(query);
+
+    // const response = await fetch(
+    //   `https://${shop}/admin/api/${apiVersion}/graphql.json`,
+    //   {
+    //     method: "POST",
+    //     headers: {
+    //       "Content-Type": "application/json",
+    //       "X-Shopify-Access-Token": accessToken!,
+    //     },
+    //     body: JSON.stringify({
+    //       query,
+    //     }),
+    //   },
+    // );
 
     if (!response.ok) {
       throw new Error(`Error fetching orders: ${response.statusText}`);

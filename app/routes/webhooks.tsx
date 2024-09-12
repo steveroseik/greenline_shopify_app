@@ -13,6 +13,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     await authenticate.webhook(request);
 
   const signature = request.headers.get("x-shopify-hmac-sha256");
+
   const requestBodyString = JSON.stringify(request.body);
 
   const secretKey = process.env.SHOPIFY_API_SECRET;
@@ -23,11 +24,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     secretKey,
   ).toString(CryptoJS.enc.Base64);
 
+  // const generatedSignature = crypto
+  //   .createHmac("SHA256", secretKey)
+  //   .update(requestBodyString, "utf8")
+  //   .digest("base64");
+
   if (signature !== generatedSignature) {
     return new Response("Invalid signature", { status: 401 });
   }
 
   console.log(request.headers.get("X-Shopify-Topic"));
+
   if (!admin) {
     // The admin context isn't returned if the webhook fired after a shop was uninstalled.
     throw new Response();
@@ -49,8 +56,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           console.log(response.success);
         }
       }
-      return { status: 200 };
-
+      break;
     case "ORDERS_CREATE":
       {
         console.log(`------- HIT ORDER CREATE HERE -------`);
@@ -65,7 +71,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         console.log(resp.createdAt, "CREATED AT");
         console.log(`------- HIT ENDED ORDER CREATE -------`);
       }
-      return { status: 200 };
+      break;
 
     case "PRODUCTS_UPDATE":
       {
@@ -73,16 +79,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         console.log(payload);
         console.log(`------- HIT ENDED PRODUCT UPDATE -------`);
       }
-      return { status: 200 };
+      break;
 
     case "CUSTOMERS_DATA_REQUEST":
-      return { status: 200 };
+      break;
 
     case "CUSTOMERS_REDACT":
-      return { status: 200 };
+      break;
 
     case "SHOP_REDACT":
-      return { status: 200 };
+      break;
 
     default:
       throw new Response("Unhandled webhook topic", { status: 404 });

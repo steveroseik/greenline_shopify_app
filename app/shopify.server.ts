@@ -20,6 +20,10 @@ const shopify = shopifyApp({
     tableName: "shopify_session",
   }),
   distribution: AppDistribution.AppStore,
+  future: {
+    unstable_newEmbeddedAuthStrategy: true,
+    wip_optionalScopesApi: true,
+  },
   restResources,
   ...(process.env.SHOP_CUSTOM_DOMAIN
     ? { customShopDomains: [process.env.SHOP_CUSTOM_DOMAIN] }
