@@ -27,7 +27,7 @@ const devMode = process.env.DEV_MODE === "true";
 const endpoint =
   (devMode ?? true)
     ? `http://localhost:3001/graphql`
-    : "https://greenlineco.site/graphql";
+    : "https://104.248.16.11/graphql";
 export const graphqlClient = new GraphQLClient(endpoint, {
   headers: {
     "Content-Type": "application/json",
