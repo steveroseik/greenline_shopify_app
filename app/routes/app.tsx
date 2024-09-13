@@ -22,7 +22,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return json({ apiKey: process.env.SHOPIFY_API_KEY || "" });
 };
 
-const devMode = process.env.DEV_MODE;
+const devMode = process.env.DEV_MODE === "true";
 
 const endpoint =
   (devMode ?? true)
