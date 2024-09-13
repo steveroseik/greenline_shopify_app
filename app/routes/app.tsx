@@ -24,6 +24,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 const devMode = process.env.DEV_MODE === "true";
 
+console.log("DEVMODE", devMode);
+console.log("ENV", process.env.DEV_MODE);
+
 const endpoint =
   (devMode ?? true)
     ? `http://localhost:3001/graphql`
