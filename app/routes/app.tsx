@@ -21,9 +21,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   return json({ apiKey: process.env.SHOPIFY_API_KEY || "" });
 };
-const endpoint = false
-  ? "https://greenlineco.site/graphql"
-  : `http://localhost:3001/graphql`;
+
+const devMode = process.env.DEV_MODE;
+
+const endpoint =
+  (devMode ?? true)
+    ? `http://localhost:3001/graphql`
+    : "https://greenlineco.site/graphql";
 export const graphqlClient = new GraphQLClient(endpoint, {
   headers: {
     "Content-Type": "application/json",
