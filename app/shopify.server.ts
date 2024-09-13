@@ -15,7 +15,7 @@ const shopify = shopifyApp({
   apiVersion: ApiVersion.July24,
   scopes: process.env.SCOPES?.split(","),
   appUrl: process.env.SHOPIFY_APP_URL || "",
-  authPathPrefix: "/shopify/auth",
+  authPathPrefix: "/auth",
   sessionStorage: new PrismaSessionStorage(prisma, {
     tableName: "shopify_session",
   }),
@@ -31,11 +31,11 @@ const shopify = shopifyApp({
   webhooks: {
     APP_UNINSTALLED: {
       deliveryMethod: DeliveryMethod.Http,
-      callbackUrl: "/shopify/webhooks",
+      callbackUrl: "/webhooks",
     },
     ORDERS_CREATE: {
       deliveryMethod: DeliveryMethod.Http,
-      callbackUrl: "/shopify/webhooks",
+      callbackUrl: "/webhooks",
       callback: async (topic, shop, body, webhookId) => {
         console.log(`------- ORDER CREATED ---------`);
         console.log(body);
@@ -44,7 +44,7 @@ const shopify = shopifyApp({
     },
     PRODUCTS_UPDATE: {
       deliveryMethod: DeliveryMethod.Http,
-      callbackUrl: "/shopify/webhooks",
+      callbackUrl: "/webhooks",
       callback: async (topic, shop, body, webhookId) => {
         console.log(`------- PRODUCT UPDATED ---------`);
         console.log(body);
@@ -53,7 +53,7 @@ const shopify = shopifyApp({
     },
     CUSTOMERS_DATA_REQUEST: {
       deliveryMethod: DeliveryMethod.Http,
-      callbackUrl: "/shopify/webhooks",
+      callbackUrl: "/webhooks",
       callback: async (topic, shop, body, webhookId) => {
         console.log(`------- CUSTOMER DATA REQUESTED ---------`);
         console.log(body);
@@ -62,7 +62,7 @@ const shopify = shopifyApp({
     },
     CUSTOMERS_REDACT: {
       deliveryMethod: DeliveryMethod.Http,
-      callbackUrl: "/shopify/webhooks",
+      callbackUrl: "/webhooks",
       callback: async (topic, shop, body, webhookId) => {
         console.log(`------- CUSTOMER DATA REDACTED ---------`);
         console.log(body);
@@ -71,7 +71,7 @@ const shopify = shopifyApp({
     },
     SHOP_REDACT: {
       deliveryMethod: DeliveryMethod.Http,
-      callbackUrl: "/shopify/webhooks",
+      callbackUrl: "/webhooks",
       callback: async (topic, shop, body, webhookId) => {
         console.log(`------- SHOP REDACTED ---------`);
         console.log(body);
