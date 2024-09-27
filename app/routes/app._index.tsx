@@ -25,6 +25,7 @@ import {
   Link,
   InlineStack,
   TextField,
+  Spinner,
 } from "@shopify/polaris";
 import { TitleBar, useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
@@ -111,11 +112,15 @@ export const action = async ({ request }: ActionFunctionArgs): Promise<any> => {
 
   const action = formData.get("action");
 
+  console.log("ACTIOED", action);
+
   switch (action) {
     case "signIn":
       return signInActionFunction(formData);
     case "linkShop":
       return linkShopActionFunction(shop, formData, session, admin);
+    default:
+      return null;
   }
 };
 
@@ -146,7 +151,7 @@ const linkShopActionFunction = async (
     ${query}
   `);
 
-  console.log(response, "RESPONSE");
+  console.log(response, "RESPONSEX");
 
   return {
     ...response,
@@ -157,6 +162,9 @@ const linkShopActionFunction = async (
 const signInActionFunction = async (formData: FormData) => {
   const email = formData.get("email");
   const password = formData.get("password");
+
+  console.log("EMAIL", email);
+  console.log("PASSWORD", password);
 
   if (!validateEmail(email?.toString())) {
     return {
@@ -185,6 +193,8 @@ const signInActionFunction = async (formData: FormData) => {
         ${query}
       `);
 
+    console.log(response, "RESPONSE");
+
     if (response === null)
       return {
         success: false,
@@ -203,6 +213,7 @@ const signInActionFunction = async (formData: FormData) => {
       };
     }
   } catch (e) {
+    console.log(e);
     return {
       success: false,
       message: `${e}`,
@@ -215,11 +226,14 @@ export default function Index() {
   const actionData = useActionData<typeof action>();
   const loaderData = useLoaderData<LoaderResponse>();
 
-  const { shopSession, updateState } = useShopSession();
+  const { shopSession, updateState, resetSession } = useShopSession();
 
   let actionMessage = actionData?.message;
 
+  const [loading, setLoading] = useState<boolean>(true);
+
   useEffect(() => {
+    if (loading) setLoading(false);
     console.log("DATA YABA", actionData);
     console.log("LOADER YABA", loaderData);
 
@@ -231,6 +245,8 @@ export default function Index() {
 
     // Update shop session with loader data
     if (loaderData) {
+      if (actionData?.merchant) loaderData.merchant = actionData.merchant;
+      if (actionData?.shop) loaderData.shop = actionData.shop;
       console.log();
       updateState({
         merchantInfo: loaderData?.merchant,
@@ -255,7 +271,7 @@ export default function Index() {
         linked: true,
       });
     }
-  }, [loaderData]);
+  }, [loaderData, actionData]);
 
   const submit = useSubmit();
 
@@ -304,83 +320,110 @@ export default function Index() {
               </BlockStack>
             </Card>
           </Layout.Section>
-          {shopSession.linked !== true &&
-            shopSession.merchantInfo?.id === undefined && (
-              <Layout.Section>
-                <Card>
-                  <Form
-                    method="post"
-                    onSubmit={() =>
-                      submit({}, { replace: true, method: "POST" })
-                    }
-                  >
-                    <Card>
-                      <TextField
-                        inputMode="email"
-                        label="Email"
-                        name="email"
-                        value={email}
-                        onChange={handleEmail}
-                        placeholder="Ex: steveroseik@gmail.com"
-                        autoComplete="true"
-                      />
-                      <div style={{ padding: "5px" }} />
-                      <TextField
-                        inputMode="text"
-                        name="password"
-                        type="password"
-                        value={password}
-                        onChange={handlePass}
-                        label="Password"
-                        autoComplete="true"
-                      />
-                    </Card>
-                    <div style={{ padding: "10px" }} />
-                    <input type="hidden" name="action" value="signIn" />
-                    <Button variant="primary" submit={true}>
-                      Connect with App
-                    </Button>
-                  </Form>
-                </Card>
-              </Layout.Section>
-            )}
-          {shopSession.linked !== true &&
-            shopSession.merchantInfo?.id !== undefined &&
-            shopSession.merchantInfo?.name !== undefined && (
-              <Layout.Section>
-                <Card>
-                  <Text variant="headingSm" as="h3">
-                    You are a manager in {shopSession.merchantInfo.name} at
-                    Greenline. Do you want to link it?
-                  </Text>
-                  <div style={{ padding: "10px" }} />
-                  <Form
-                    method="POST"
-                    onSubmit={() =>
-                      submit({}, { replace: true, method: "POST" })
-                    }
-                  >
-                    <input type="hidden" name="action" value="linkShop" />
-                    <input
-                      type="hidden"
-                      name="merchantId"
-                      value={shopSession.merchantInfo?.id}
-                    />
-                    <Button variant="primary" submit={true}>
-                      Link With {shopSession.merchantInfo.name}
-                    </Button>
-                  </Form>
-                </Card>
-              </Layout.Section>
-            )}
-          {shopSession.linked === true && (
+          {loading ? (
             <Layout.Section>
               <Card>
-                <Text variant="bodyLg" as="h3">
-                  CONGRATULATIONSS YOU ARE LINKED
-                </Text>
+                <Spinner aria-label="Loading orders" />
               </Card>
             </Layout.Section>
+          ) : (
+            <>
+              {shopSession.linked !== true &&
+                shopSession.merchantInfo?.id === undefined && (
+                  <Layout.Section>
+                    <Card>
+                      <Form
+                        method="post"
+                        onSubmit={() =>
+                          submit({}, { replace: true, method: "POST" })
+                        }
+                      >
+                        <Card>
+                          <TextField
+                            inputMode="email"
+                            label="Email"
+                            name="email"
+                            value={email}
+                            onChange={handleEmail}
+                            placeholder="Ex: steveroseik@gmail.com"
+                            autoComplete="true"
+                          />
+                          <div style={{ padding: "5px" }} />
+                          <TextField
+                            inputMode="text"
+                            name="password"
+                            type="password"
+                            value={password}
+                            onChange={handlePass}
+                            label="Password"
+                            autoComplete="true"
+                          />
+                        </Card>
+                        <div style={{ padding: "10px" }} />
+                        <input type="hidden" name="action" value="signIn" />
+                        <Button variant="primary" submit={true}>
+                          Connect with App
+                        </Button>
+                      </Form>
+                    </Card>
+                  </Layout.Section>
+                )}
+              {shopSession.linked !== true &&
+                shopSession.merchantInfo?.id !== undefined &&
+                shopSession.merchantInfo?.name !== undefined && (
+                  <Layout.Section>
+                    <Card>
+                      <Text variant="headingSm" as="h3">
+                        You are a manager in {shopSession.merchantInfo.name} at
+                        Greenline. Do you want to link it?
+                      </Text>
+                      <div style={{ padding: "10px" }} />
+                      <div style={{ display: "flex", gap: "10px" }}>
+                        <Form
+                          method="POST"
+                          onSubmit={() =>
+                            submit({}, { replace: true, method: "POST" })
+                          }
+                        >
+                          <input type="hidden" name="action" value="linkShop" />
+                          <input
+                            type="hidden"
+                            name="merchantId"
+                            value={shopSession.merchantInfo?.id}
+                          />
+                          <Button variant="primary" submit={true}>
+                            Link With {shopSession.merchantInfo.name}
+                          </Button>
+                        </Form>
+                        <Form
+                          method="POST"
+                          onSubmit={(e) => {
+                            e.preventDefault(); // Prevent the default form submission
+                            resetSession(); // Call resetSession
+                          }}
+                        >
+                          <Button
+                            variant="primary"
+                            tone="critical"
+                            submit={true}
+                          >
+                            Switch Account
+                          </Button>
+                        </Form>
+                      </div>
+                    </Card>
+                  </Layout.Section>
+                )}
+              {shopSession.linked === true && (
+                <Layout.Section>
+                  <Card>
+                    <Text variant="bodyLg" as="h3">
+                      CONGRATULATIONSS YOU ARE LINKED
+                    </Text>
+                  </Card>
+                </Layout.Section>
+              )}
+            </>
           )}
         </Layout>
       </BlockStack>

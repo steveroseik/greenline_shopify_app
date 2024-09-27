@@ -7,11 +7,11 @@ import React, {
   useReducer,
   useState,
 } from "react";
+import { Item, ItemVariant } from "~/interface/Product/itemObject.interface";
 import {
   EdgeNode,
   VariantsNode,
 } from "~/interface/Product/productsPageInterface";
-import { Item, ItemVariant } from "~/interface/itemObject.interface";
 
 export interface productContextData {
   itemsToAdd: EdgeNode[];

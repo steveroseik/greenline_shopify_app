@@ -15,6 +15,7 @@ export interface ShopSession {
 export interface AppState {
   shopSession?: ShopSession;
   updateState: (newState: Partial<ShopSession>) => void;
+  resetSession: () => void;
 }
 
 /**
@@ -25,6 +26,7 @@ const defaultState: AppState = {
     linked: false,
   },
   updateState: () => {}, // This is just a placeholder, will be overridden in the provider.
+  resetSession: () => {}, // This is just a placeholder, will be overridden in the provider.
 };
 
 /**

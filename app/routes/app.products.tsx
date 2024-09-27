@@ -1,5 +1,10 @@
 import { Decimal } from "@prisma/client/runtime/library";
-import { ActionFunctionArgs, LoaderFunction, json } from "@remix-run/node";
+import {
+  ActionFunctionArgs,
+  LoaderFunction,
+  LoaderFunctionArgs,
+  json,
+} from "@remix-run/node";
 import {
   useLoaderData,
   useActionData,
@@ -34,13 +39,12 @@ import { graphqlClient } from "./app";
 import { gql } from "graphql-request";
 import { Item, ItemVariant } from "~/interface/Product/itemObject.interface";
 import { ShopSession, useShopSession } from "~/session/shop-session";
+import { Message } from "@shopify/polaris/build/ts/src/components/TopBar/components/Menu/components";
+import { findItemsWithShopifyIdResponse } from "~/interface/Product/find-items-with-shopify-id";
+import { analyseProducts } from "~/functions/productAnalysis";
 
 export interface ProductsResponse extends productContextData {
   data: Edge[];
-}
-
-interface findItemsWithShopifyIdResponse {
-  findItemsWithShopifyId: Item[] | null;
 }
 
 function hasUpdates(state: productContextData) {
@@ -52,384 +56,6 @@ function hasUpdates(state: productContextData) {
     state.variantsToUpdate.length > 0 ||
     state.variantsToRemove.length > 0
   );
-}
-
-async function analyseProducts(
-  jsonResponse: ProductsPage,
-  goodItems: EdgeNode[],
-  itemsToAdd: EdgeNode[],
-  itemsToUpdate: EdgeNode[],
-  itemsToRemove: Item[],
-  variantsToAdd: VariantsNode[],
-  variantsToUpdate: VariantsNode[],
-  variantsToRemove: ItemVariant[],
-  variantOptionsToAdd: string[],
-  variantNamesToAdd: string[],
-  invalidVariants: VariantsNode[],
-) {
-  const productsIds = jsonResponse.data.products.edges.map(
-    (edge) => edge.node.id,
-  );
-
-  console.log(JSON.stringify(productsIds));
-
-  console.log(
-    `0 ============================== PP ${jsonResponse.data.products.edges.length} =============================================================`,
-  );
-
-  let itemQuery = `
-        query($input: FindItemsWithShopifyIdInput!){
-            findItemsWithShopifyId(input: $input){
-              id
-              merchantId
-              shopifyId
-              name
-              currency
-              imageUrl
-              description
-              currency
-              itemVariants{
-                id
-                merchantId
-                itemId
-                name
-                sku
-                shopifyId
-                isEnabled
-                merchantSku
-                imageUrl
-                price
-                selectedOptions{
-                  id
-                  variantOption{
-                    id
-                    value
-                  }
-                  variantName{
-                    id
-                    name
-                  }
-                }
-              }
-            }
-          }
-        `;
-
-  /// get items from db
-  const dbItems =
-    await graphqlClient.request<findItemsWithShopifyIdResponse | null>(
-      gql`
-        ${itemQuery}
-      `,
-      { input: { ids: productsIds } },
-    );
-
-  console.log(dbItems, "dbItems");
-
-  if (
-    !dbItems?.findItemsWithShopifyId ||
-    dbItems?.findItemsWithShopifyId.length == 0
-  ) {
-    /// if no items in db
-
-    jsonResponse.data.products.edges.forEach((edge) => {
-      edge.node.variants.nodes.forEach((variant) => {
-        variant.synced = false;
-        variant.invalid = false;
-        /// check if variant has image
-        if (variant.image == null) {
-          /// if variant has no image, check if product has image
-          if (edge.node.images.nodes.length > 0) {
-            const element = edge.node.images.nodes.find((e) => e.url);
-            if (element) {
-              variant.image = element;
-            } else {
-              variant.invalid = true;
-              invalidVariants.push(variant);
-            }
-          } else {
-            variant.invalid = true;
-            invalidVariants.push(variant);
-          }
-        }
-
-        /// add variant options and names to add if not already added
-        if (variant.invalid !== true) {
-          if (variant.selectedOptions)
-            variant.selectedOptions.forEach((option) => {
-              option.name = option.name == "Title" ? "Default" : option.name;
-              option.value =
-                option.value == "Default Title" ? "Default" : option.value;
-              if (!variantOptionsToAdd.includes(option.value)) {
-                variantOptionsToAdd.push(option.value);
-              }
-              if (!variantNamesToAdd.includes(option.name)) {
-                variantNamesToAdd.push(option.name);
-              }
-            });
-        }
-        return variant;
-      });
-    });
-    console.log(
-      "4 =============================================================================================================",
-    );
-
-    /// add items to add
-    itemsToAdd.push(
-      ...jsonResponse.data.products.edges
-        .filter((edge) => {
-          const newEdge: Edge = JSON.parse(JSON.stringify(edge));
-
-          newEdge.node.variants.nodes = newEdge.node.variants.nodes.filter(
-            (variant) => variant.invalid === false,
-          );
-          return newEdge.node.variants.nodes.length > 0;
-        })
-        .map((edge) => edge.node),
-    );
-  } else {
-    /// if item in db
-
-    jsonResponse.data.products.edges.forEach((edge) => {
-      const item = dbItems.findItemsWithShopifyId?.find(
-        (e) => e.shopifyId == edge.node.id,
-      );
-      if (item) {
-        /// validate item info
-        if (
-          item.description == edge.node.description &&
-          item.name == edge.node.title
-        ) {
-          goodItems.push(edge.node);
-        } else {
-          itemsToUpdate.push(edge.node);
-        }
-        /// validate item variants
-        for (const variant of edge.node.variants.nodes) {
-          const dbVariant = item.itemVariants.find(
-            (v) => v.shopifyId == variant.id,
-          );
-
-          if (dbVariant) {
-            console.log("variant check = == == == = === =");
-            if (variant.image == null) {
-              if (edge.node.images.nodes.length > 0) {
-                const element = edge.node.images.nodes.find((e) => e.url);
-                if (element) {
-                  variant.image = element;
-                } else {
-                  variant.invalid = true;
-                  variant.synced = false;
-                  invalidVariants.push(variant);
-                  variantsToRemove.push(dbVariant);
-                  continue;
-                }
-              } else {
-                variant.invalid = true;
-                variant.synced = false;
-                invalidVariants.push(variant);
-                variantsToRemove.push(dbVariant);
-                continue;
-              }
-            }
-            for (const option of variant.selectedOptions) {
-              const dbOption = dbVariant.selectedOptions.find(
-                (o) =>
-                  o.variantName.name ==
-                  (option.name == "Title" ? "Default" : option.name),
-              );
-
-              if (dbOption) {
-                if (
-                  dbOption.variantOption.value ==
-                  (option.value == "Default Title" ? "Default" : option.value)
-                ) {
-                  // check names
-                  console.log(
-                    `${dbVariant.merchantSku} - ${variant.sku} :: ${
-                      dbVariant.merchantSku == variant.sku ||
-                      variant.sku.length == 0
-                    }`,
-                  );
-
-                  console.log(
-                    `${new Decimal(dbVariant.price).toFixed(2)} - ${variant.price}`,
-                  );
-                  console.log(
-                    `${dbVariant.isEnabled} - ${variant.availableForSale}`,
-                  );
-                  console.log(
-                    `${
-                      dbVariant.name
-                    } - '${variant.title == "Default Title" ? "" : variant.title}'`,
-                  );
-                  if (
-                    dbVariant.merchantSku == variant.sku ||
-                    (variant.sku.length == 0 &&
-                      new Decimal(dbVariant.price).toFixed(2) ==
-                        variant.price &&
-                      dbVariant.imageUrl == variant.image?.url &&
-                      dbVariant.name ==
-                        (variant.title == "Default Title"
-                          ? ""
-                          : variant.title) &&
-                      dbVariant.isEnabled == variant.availableForSale)
-                  ) {
-                    variant.synced = true;
-                  } else {
-                    variantsToUpdate.push(variant);
-                    variant.synced = false;
-                  }
-                } else {
-                  variantsToRemove.push(dbVariant);
-                  variant.itemId = item.id;
-                  variant.itemName = item.name;
-                  variantsToAdd.push(variant);
-                  variant.synced = false;
-                  variant.selectedOptions.forEach((option) => {
-                    option.name =
-                      option.name == "Title" ? "Default" : option.name;
-                    option.value =
-                      option.value == "Default Title"
-                        ? "Default"
-                        : option.value;
-                    if (!variantOptionsToAdd.includes(option.value)) {
-                      variantOptionsToAdd.push(option.value);
-                    }
-                    if (!variantNamesToAdd.includes(option.name)) {
-                      variantNamesToAdd.push(option.name);
-                    }
-                  });
-                  break;
-                }
-              } else {
-                variantsToRemove.push(dbVariant);
-                variant.itemId = item.id;
-                variant.itemName = item.name;
-                variantsToAdd.push(variant);
-                variant.synced = false;
-                variant.selectedOptions.forEach((option) => {
-                  option.name =
-                    option.name == "Title" ? "Default" : option.name;
-                  option.value =
-                    option.value == "Default Title" ? "Default" : option.value;
-                  if (!variantOptionsToAdd.includes(option.value)) {
-                    variantOptionsToAdd.push(option.value);
-                  }
-                  if (!variantNamesToAdd.includes(option.name)) {
-                    variantNamesToAdd.push(option.name);
-                  }
-                });
-                break;
-              }
-            }
-          } else {
-            if (variant.image == null) {
-              if (edge.node.images.nodes.length > 0) {
-                const element = edge.node.images.nodes.find((e) => e.url);
-                if (element) {
-                  variant.image = element;
-                  variant.itemId = item.id;
-                  variant.itemName = item.name;
-                  variantsToAdd.push(variant);
-                  variant.selectedOptions.forEach((option) => {
-                    option.name =
-                      option.name == "Title" ? "Default" : option.name;
-                    option.value =
-                      option.value == "Default Title"
-                        ? "Default"
-                        : option.value;
-                    if (!variantOptionsToAdd.includes(option.value)) {
-                      variantOptionsToAdd.push(option.value);
-                    }
-                    if (!variantNamesToAdd.includes(option.name)) {
-                      variantNamesToAdd.push(option.name);
-                    }
-                  });
-                  variant.synced = false;
-                } else {
-                  variant.invalid = true;
-                  invalidVariants.push(variant);
-                }
-              } else {
-                variant.invalid = true;
-                invalidVariants.push(variant);
-              }
-            } else {
-              variant.itemId = item.id;
-              variant.itemName = item.name;
-              variantsToAdd.push(variant);
-              variant.selectedOptions.forEach((option) => {
-                option.name = option.name == "Title" ? "Default" : option.name;
-                option.value =
-                  option.value == "Default Title" ? "Default" : option.value;
-                if (!variantOptionsToAdd.includes(option.value)) {
-                  variantOptionsToAdd.push(option.value);
-                }
-                if (!variantNamesToAdd.includes(option.name)) {
-                  variantNamesToAdd.push(option.name);
-                }
-              });
-              variant.synced = false;
-            }
-          }
-        }
-      } else {
-        console.log(
-          "7 =============================================================================================================",
-        );
-
-        let validItem = true;
-        edge.node.variants.nodes = edge.node.variants.nodes.map((variant) => {
-          variant.invalid = false;
-          variant.synced = false;
-          if (variant.image == null) {
-            if (edge.node.images.nodes.length > 0) {
-              const element = edge.node.images.nodes.find((e) => e.url);
-              if (element) {
-                variant.image = element;
-                variant.invalid = false;
-              } else {
-                validItem = false;
-                variant.invalid = true;
-                invalidVariants.push(variant);
-              }
-            } else {
-              validItem = false;
-              variant.invalid = true;
-              invalidVariants.push(variant);
-            }
-          }
-          return variant;
-        });
-
-        if (validItem) itemsToAdd?.push(edge.node);
-      }
-    });
-
-    itemsToRemove.push(
-      ...dbItems.findItemsWithShopifyId.filter(
-        (item) =>
-          itemsToAdd.find((e) => e.id == item.shopifyId) == undefined &&
-          goodItems.find((e) => e.id == item.shopifyId) == undefined,
-      ),
-    );
-
-    const flatShopifyVariants = jsonResponse.data.products.edges
-      .map((e) => e.node.variants.nodes)
-      .flat();
-
-    const otherVariantsToRemove = dbItems.findItemsWithShopifyId
-      .map((e) => e.itemVariants)
-      .flat()
-      .filter(
-        (e) =>
-          flatShopifyVariants.find((v) => v.id == e.shopifyId) == undefined &&
-          variantsToRemove.find((v) => v.shopifyId == e.shopifyId) == undefined,
-      );
-    variantsToRemove = [...variantsToRemove, ...otherVariantsToRemove];
-  }
 }
 
 function setQuery(nextPageCursor?: string) {
@@ -496,21 +122,19 @@ function setQuery(nextPageCursor?: string) {
 }
 
 export const action = async ({ request }: ActionFunctionArgs): Promise<any> => {
-  const body = await request.formData();
-
-  const state: productContextData = JSON.parse(body.get("state") as string);
-
-  console.log(state, "STATE");
-
-  console.log("ENTERING THE VOID");
-
-  const { admin, session } = await authenticate.admin(request);
-
-  const { shop, accessToken } = session;
-
-  console.log("OUT OF THE VOID");
-
   try {
+    const { admin, session } = await authenticate.admin(request);
+
+    const { shop, accessToken } = session;
+
+    const body = await request.formData();
+
+    const rawState = body.get("state");
+
+    if (!rawState) throw Error("No state found");
+
+    const state: productContextData = JSON.parse(rawState as string);
+
     const query = `
   mutation ($input: SyncShopifyProductsInput!){
      syncShopifyProducts(input: $input)
@@ -524,10 +148,6 @@ export const action = async ({ request }: ActionFunctionArgs): Promise<any> => {
         { input: { shopifyId: shop, ...state } },
       );
 
-    console.log("variables", { shopifyId: shop, ...state });
-
-    console.log(response, "RESPONSE");
-
     return json({ success: true });
   } catch (e) {
     console.log("ERROR AT TRIAL: ", e);
@@ -535,7 +155,10 @@ export const action = async ({ request }: ActionFunctionArgs): Promise<any> => {
   }
 };
 
-export const loader: LoaderFunction = async ({ request }) => {
+export const loader: LoaderFunction = async ({
+  params,
+  request,
+}: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
 
   const { shop, accessToken } = session;
@@ -577,22 +200,6 @@ export const loader: LoaderFunction = async ({ request }) => {
 
         productEdges.push(...jsonResponse.data.products.edges);
 
-        if (jsonResponse) {
-          await analyseProducts(
-            jsonResponse,
-            goodItems,
-            itemsToAdd,
-            itemsToUpdate,
-            itemsToRemove,
-            variantsToAdd,
-            variantsToUpdate,
-            variantsToRemove,
-            variantOptionsToAdd,
-            variantNamesToAdd,
-            invalidVariants,
-          );
-        }
-
         if (jsonResponse.data.products.pageInfo.hasNextPage) {
           nextPageCursor = jsonResponse.data.products.pageInfo.endCursor;
           query = setQuery(nextPageCursor);
@@ -601,6 +208,20 @@ export const loader: LoaderFunction = async ({ request }) => {
         }
       }
     } while (true);
+
+    await analyseProducts(
+      productEdges,
+      goodItems,
+      itemsToAdd,
+      itemsToUpdate,
+      itemsToRemove,
+      variantsToAdd,
+      variantsToUpdate,
+      variantsToRemove,
+      variantOptionsToAdd,
+      variantNamesToAdd,
+      invalidVariants,
+    );
 
     return {
       data: productEdges,
@@ -659,8 +280,6 @@ const CollectionContent = () => {
 
   const submit = useSubmit();
 
-  const formRef = useRef(null);
-
   const [loading, setLoading] = useState<boolean>(true);
 
   const [active, setActive] = useState(false);
@@ -675,47 +294,32 @@ const CollectionContent = () => {
   console.log(state, "state");
 
   useEffect(() => {
-    console.log("DISPATCHINGGGG");
+    console.log("DISPATCHINGGGG", actionData);
 
     if (response) {
+      dispatch({
+        type: "OVERWRITE_ALL",
+        payload: response,
+      });
       setLoading(false);
     }
 
-    if (actionData?.success === true) {
-      dispatch({ type: "RESET" });
-      shopify.toast.show("Sync Successful");
-    } else {
-      if (actionData?.success == false) {
-        shopify.toast.show(`${actionData?.message ?? "An error occured"}`);
+    if (actionData) {
+      if (actionData?.success === true) {
+        dispatch({ type: "RESET" });
+        shopify.toast.show("Sync Successful");
+      } else {
+        if (actionData?.success == false) {
+          if (actionData?.message instanceof String) {
+            shopify.toast.show(`${actionData?.message ?? "An error occured"}`);
+          } else {
+            shopify.toast.show(`"An error occured"`);
+          }
+        }
       }
+      if (loading) setLoading(false);
     }
-
-    dispatch({ type: "ADD_ITEMS_TO_ADD", payload: response.itemsToAdd });
-    dispatch({ type: "ADD_ITEMS_TO_UPDATE", payload: response.itemsToUpdate });
-    dispatch({ type: "ADD_GOOD_ITEMS", payload: response.goodItems });
-    dispatch({ type: "ADD_ITEMS_TO_REMOVE", payload: response.itemsToRemove });
-    dispatch({ type: "ADD_VARIANTS_TO_ADD", payload: response.variantsToAdd });
-    dispatch({
-      type: "ADD_VARIANTS_TO_UPDATE",
-      payload: response.variantsToUpdate,
-    });
-    dispatch({
-      type: "ADD_VARIANTS_TO_REMOVE",
-      payload: response.variantsToRemove,
-    });
-    dispatch({
-      type: "ADD_VARIANT_OPTION_TO_ADD",
-      payload: response.variantOptionsToAdd,
-    });
-    dispatch({
-      type: "ADD_VARIANT_NAMES_TO_ADD",
-      payload: response.variantNamesToAdd,
-    });
-    dispatch({
-      type: "ADD_INVALID_VARIANTS",
-      payload: response.invalidVariants,
-    });
-  }, []);
+  }, [actionData]);
 
   return (
     <Page>
@@ -819,7 +423,7 @@ const CollectionContent = () => {
           )}
         </Card>
       </Layout.Section>
-      <Form method="post" ref={formRef}>
+      <Form method="post">
         <input type="hidden" name="state" value={JSON.stringify(state)} />
         <Modal
           open={active}
@@ -839,9 +443,13 @@ const CollectionContent = () => {
             {
               content: "Proceed With Sync",
               onAction: () => {
+                console.log("PROCEEDING", state);
                 setLoading(true);
-                formRef.current?.submit();
                 handleChange();
+                const formData = new FormData();
+                formData.append("state", JSON.stringify(state));
+
+                submit(formData, { method: "post" });
               },
             },
           ]}

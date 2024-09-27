@@ -12,7 +12,6 @@ export interface Item {
 export interface ItemVariant {
   id: number;
   name: string;
-  merchantId: number;
   itemId: number;
   shopifyId?: string;
   isEnabled: boolean;
