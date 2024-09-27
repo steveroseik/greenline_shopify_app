@@ -37,6 +37,8 @@ import { createOrdersMutation } from "~/queries/createOrders";
 import { i } from "node_modules/vite/dist/node/types.d-aGj9QkWt";
 import { ShopSession, useShopSession } from "~/session/shop-session";
 import { AdminApiContext } from "@shopify/shopify-app-remix/server";
+import { gql } from "graphql-request";
+import { FindShopResponse } from "~/interface/Shop/find-shop";
 
 // export const loader: LoaderFunction = async ({ request }) => {
 //   const { session } = await authenticate.admin(request);
@@ -79,8 +81,19 @@ export const action: ActionFunction = async ({ request }) => {
 
   const formData = await request.formData();
   const action = formData.get("action") as string;
-  console.log("ACTION", action);
+  const rawSession = formData.get("session") as string;
+  const initial = formData.get("initial") as string;
+
   switch (action) {
+    case "initial":
+      const session = JSON.parse(rawSession) as ShopSession;
+      if (initial === "true" && !session.fetched) {
+        return fetchSession(shop);
+      } else if (session.linked) {
+        return paginate(formData, accessToken, admin, shop);
+      } else {
+        return json({ success: false, message: "Session not linked" });
+      }
     case "fetchOrders":
       return paginate(formData, accessToken, admin, shop);
     case "refresh":
@@ -90,14 +103,51 @@ export const action: ActionFunction = async ({ request }) => {
   }
 };
 
+async function fetchSession(shop: string) {
+  const query = `query {
+
+    findShop(shop: "${shop}"){
+      name
+      id
+    }
+  }`;
+
+  const response = await graphqlClient.request<FindShopResponse>(gql`
+    ${query}
+  `);
+
+  console.log(response, "RESPONSE");
+
+  // const webhooks = await admin.rest.resources.Webhook.all({
+  //   session,
+  //   limit: 20,
+  // });
+
+  // console.log(webhooks.data, "WEBHOOKS");
+
+  if (response.findShop !== null) {
+    return {
+      success: true,
+      type: "session",
+      shop,
+      merchant: response.findShop,
+    };
+  } else {
+    return {
+      success: false,
+      type: "session",
+      shop,
+      message: "Failed",
+    };
+  }
+}
+
 async function syncOrders(
   formData: FormData,
   accessToken: string,
   shop: string,
 ) {
   const orders: OrderDTO[] = JSON.parse(formData.get("orders") as string);
-
-  console.log("orders123", orders);
 
   try {
     const { createShopifyOrders } = await graphqlClient.request<{
@@ -111,8 +161,6 @@ async function syncOrders(
     });
 
     const { success, message, failedOrders } = createShopifyOrders;
-
-    console.log("SYNCED", createShopifyOrders);
 
     return { success, message, failedOrders };
   } catch (error) {
@@ -149,33 +197,15 @@ async function paginate(
     query = lastQuery;
   }
 
-  console.log("QUERY", lastQuery);
-
   try {
-    console.log("ACCESSTOKEN!!!!", accessToken);
-
     const response = await admin.graphql(query);
-
-    // const response = await fetch(
-    //   `https://${shop}/admin/api/${apiVersion}/graphql.json`,
-    //   {
-    //     method: "POST",
-    //     headers: {
-    //       "Content-Type": "application/json",
-    //       "X-Shopify-Access-Token": accessToken!,
-    //     },
-    //     body: JSON.stringify({
-    //       query,
-    //     }),
-    //   },
-    // );
 
     if (!response.ok) {
       throw new Error(`Error fetching orders: ${response.statusText}`);
     }
 
     const data: OrdersPage = (await response.json())["data"];
-    console.log("ACTIONDATA", data);
+
     const orders = await analyzeAndGenerateOrders(data);
 
     return refresh
@@ -214,18 +244,46 @@ const OrdersView = () => {
   const fetcher = useFetcher<any>();
 
   useEffect(() => {
+    console.log("INIT? ", initial);
     console.log("fetched", fetcher.data);
     if (initial) {
       setInitial(false);
-      fetcher.submit(
-        {
-          action: "fetchOrders",
-        },
-        { method: "post" },
-      );
-    }
-    if (fetcher.data) {
-      if (fetcher.data.page) {
+
+      if (shopSession.fetched && state.page) {
+        setLoading(false);
+      } else {
+        fetcher.submit(
+          {
+            action: "initial",
+            session: JSON.stringify(shopSession),
+            initial,
+          },
+          { method: "post" },
+        );
+      }
+    } else if (fetcher.data) {
+      if (fetcher.data.type === "session") {
+        updateState({
+          merchantInfo: fetcher.data?.merchant,
+          shop: fetcher.data?.shop,
+          linked: fetcher.data?.success ?? false,
+          fetched: true,
+        });
+
+        if (state.page) {
+          setLoading(false);
+        } else {
+          setLoading(true);
+          fetcher.submit(
+            {
+              action: "fetchOrders",
+              session: JSON.stringify(shopSession),
+              initial,
+            },
+            { method: "post" },
+          );
+        }
+      } else if (fetcher.data.page) {
         dispatch({ type: "SET_ORDERS", payload: fetcher.data.page });
         console.log("fetcher.data", fetcher.data);
         console.log("next_info", fetcher.data.page.pageInfo);
@@ -239,6 +297,7 @@ const OrdersView = () => {
       }
 
       if (fetcher.data.refreshed === true) {
+        console.log("REFRESHED :::: :: : :::: :: :::: : ::");
         setLoading(false);
       }
     }
@@ -304,45 +363,47 @@ const OrdersView = () => {
 
   return (
     <Page title="Merchant Orders">
-      {shopSession.linked === true ? (
+      {loading ? (
         <Layout.Section>
           <Card>
-            {loading ? (
-              <Spinner aria-label="Loading orders" />
-            ) : (
-              <div>
-                <InlineStack>
-                  <Button onClick={handleSelectAll}>Select All</Button>
-                  <div style={{ padding: "5px" }}></div>
-                  <Button onClick={handleDeselectAll}>Deselect All</Button>
-                  <div style={{ marginLeft: "auto" }}>
-                    <Button variant="primary" onClick={handleSyncOrders}>
-                      Sync Orders
-                    </Button>
-                  </div>
-                </InlineStack>
+            <Spinner aria-label="Loading orders" />
+          </Card>
+        </Layout.Section>
+      ) : shopSession.linked === true ? (
+        <Layout.Section>
+          <Card>
+            <div>
+              <InlineStack>
+                <Button onClick={handleSelectAll}>Select All</Button>
                 <div style={{ padding: "5px" }}></div>
-                {state.page && state.page.orders.length > 0 ? (
-                  <div>
-                    {state.page.orders.map((order) => (
-                      <OrderCard
-                        key={order.id}
-                        order={order}
-                        onSelect={handleOrderSelect}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <Text as="h2">No orders found</Text>
-                )}
-                <Pagination
-                  hasPrevious={pageInfo.hasPreviousPage}
-                  onPrevious={handlePreviousPage}
-                  hasNext={pageInfo.hasNextPage}
-                  onNext={handleNextPage}
-                />
-              </div>
-            )}
+                <Button onClick={handleDeselectAll}>Deselect All</Button>
+                <div style={{ marginLeft: "auto" }}>
+                  <Button variant="primary" onClick={handleSyncOrders}>
+                    Sync Orders
+                  </Button>
+                </div>
+              </InlineStack>
+              <div style={{ padding: "5px" }}></div>
+              {state.page && state.page.orders.length > 0 ? (
+                <div>
+                  {state.page.orders.map((order) => (
+                    <OrderCard
+                      key={order.id}
+                      order={order}
+                      onSelect={handleOrderSelect}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <Text as="h2">No orders found</Text>
+              )}
+              <Pagination
+                hasPrevious={pageInfo.hasPreviousPage}
+                onPrevious={handlePreviousPage}
+                hasNext={pageInfo.hasNextPage}
+                onNext={handleNextPage}
+              />
+            </div>
           </Card>
         </Layout.Section>
       ) : (
@@ -409,11 +470,6 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onSelect }) => {
                 </Badge>
               </div>
             </InlineStack>
-            {/* <div style={{ marginBottom: "8px" }}>
-              <Text as="p">
-                Total: {totalPrice} {currencyCode}
-              </Text>
-            </div> */}
             <div style={{ margin: "10px" }}></div>
             <div style={{ marginBottom: "8px" }}>
               <Text as="p" variant="headingSm">

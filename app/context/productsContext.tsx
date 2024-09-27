@@ -9,11 +9,13 @@ import React, {
 } from "react";
 import { Item, ItemVariant } from "~/interface/Product/itemObject.interface";
 import {
+  Edge,
   EdgeNode,
   VariantsNode,
 } from "~/interface/Product/productsPageInterface";
 
 export interface productContextData {
+  data: Edge[];
   itemsToAdd: EdgeNode[];
   itemsToUpdate: EdgeNode[];
   goodItems: EdgeNode[];
@@ -24,6 +26,7 @@ export interface productContextData {
   variantOptionsToAdd: string[];
   variantNamesToAdd: string[];
   invalidVariants: VariantsNode[];
+  lastFetched?: Date;
 }
 
 export const ProductsContext = createContext<{
@@ -31,6 +34,7 @@ export const ProductsContext = createContext<{
   dispatch: Function;
 }>({
   state: {
+    data: [],
     itemsToAdd: [],
     itemsToUpdate: [],
     goodItems: [],
@@ -41,6 +45,7 @@ export const ProductsContext = createContext<{
     variantOptionsToAdd: [],
     variantNamesToAdd: [],
     invalidVariants: [],
+    lastFetched: undefined,
   },
   dispatch: () => {},
 });
@@ -145,6 +150,8 @@ const productsReducer = (state: productContextData, action: any) => {
       };
     case "OVERWRITE_ALL":
       return {
+        data: action.payload.data,
+        lastFetched: new Date(),
         itemsToAdd: action.payload.itemsToAdd,
         itemsToUpdate: action.payload.itemsToUpdate,
         goodItems: action.payload.goodItems,
@@ -158,6 +165,8 @@ const productsReducer = (state: productContextData, action: any) => {
       };
     case "RESET":
       return {
+        lastFetched: new Date(),
+        data: state.data,
         itemsToAdd: [],
         itemsToUpdate: [],
         goodItems: [],
@@ -176,6 +185,7 @@ const productsReducer = (state: productContextData, action: any) => {
 
 const ProductsProvider: React.FC = (props: PropsWithChildren) => {
   const [state, dispatch] = useReducer(productsReducer, {
+    data: [],
     itemsToAdd: [],
     itemsToUpdate: [],
     goodItems: [],

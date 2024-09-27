@@ -7,6 +7,7 @@ export interface ShopSession {
     name: string;
   };
   linked?: boolean;
+  fetched?: boolean;
 }
 
 /**

@@ -34,31 +34,9 @@ import { ShopSession, useShopSession } from "~/session/shop-session";
 import { graphqlClient } from "./app";
 import { gql } from "graphql-request";
 import { validateEmail } from "~/support/emailValidations";
-
-interface FindShopResponse {
-  findShop: {
-    id: number;
-    name: string;
-  } | null;
-}
-
-interface SignInFromShopifyResponse {
-  signInFromShopify: {
-    success: Boolean;
-    message: String | null;
-    merchantDetails: Record<string, any> | null;
-  };
-}
-
-interface LoaderResponse {
-  success: Boolean;
-  shop: String;
-  merchant?: {
-    id: number;
-    name: string;
-  };
-  message?: String;
-}
+import { FindShopResponse } from "~/interface/Shop/find-shop";
+import { LoaderResponse } from "~/interface/Shop/loader-response";
+import { SignInFromShopifyResponse } from "~/interface/Shop/signin-from-shopify";
 
 export const loader: LoaderFunction = async ({
   request,
@@ -252,12 +230,12 @@ export default function Index() {
         merchantInfo: loaderData?.merchant,
         shop: loaderData?.shop,
         linked: loaderData?.success ?? false,
+        fetched: true,
       });
     }
 
     // Update shop session with action data if necessary
     if (actionData?.merchant && !shopSession.merchantInfo) {
-      console.log("YABA DATA", actionData);
       updateState({
         merchantInfo: {
           id: actionData?.merchant!.id,

@@ -3,7 +3,7 @@
 client_id = "b07d3deef8c6b0b1b0b50aa79aa2350b"
 name = "Greenline Merchant"
 handle = "greenline-merchnt"
-application_url = "https://actively-negative-hacker-g.trycloudflare.com"
+application_url = "https://wellness-polished-eva-favorite.trycloudflare.com"
 embedded = true
 
 [build]
@@ -17,9 +17,9 @@ scopes = "customer_read_customers,read_customers,read_discounts,read_draft_order
 
 [auth]
 redirect_urls = [
-  "https://actively-negative-hacker-g.trycloudflare.com/auth/callback",
-  "https://actively-negative-hacker-g.trycloudflare.com/auth/shopify/callback",
-  "https://actively-negative-hacker-g.trycloudflare.com/api/auth/callback"
+  "https://wellness-polished-eva-favorite.trycloudflare.com/auth/callback",
+  "https://wellness-polished-eva-favorite.trycloudflare.com/auth/shopify/callback",
+  "https://wellness-polished-eva-favorite.trycloudflare.com/api/auth/callback"
 ]
 
 [webhooks]

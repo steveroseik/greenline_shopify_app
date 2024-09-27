@@ -11,6 +11,7 @@ import {
   useSubmit,
   Form,
   useNavigate,
+  useFetcher,
 } from "@remix-run/react";
 import {
   Page,
@@ -25,6 +26,7 @@ import {
   Spinner,
   Image,
   Text,
+  Button,
 } from "@shopify/polaris";
 import { useRef, useState, useCallback, useContext, useEffect } from "react";
 import { productContextData, ProductsContext } from "~/context/productsContext";
@@ -42,6 +44,8 @@ import { ShopSession, useShopSession } from "~/session/shop-session";
 import { Message } from "@shopify/polaris/build/ts/src/components/TopBar/components/Menu/components";
 import { findItemsWithShopifyIdResponse } from "~/interface/Product/find-items-with-shopify-id";
 import { analyseProducts } from "~/functions/productAnalysis";
+import { FindShopResponse } from "~/interface/Shop/find-shop";
+import { RefreshIcon } from "@shopify/polaris-icons";
 
 export interface ProductsResponse extends productContextData {
   data: Edge[];
@@ -121,6 +125,45 @@ function setQuery(nextPageCursor?: string) {
     `;
 }
 
+async function fetchSession(shop: string) {
+  const query = `query {
+
+    findShop(shop: "${shop}"){
+      name
+      id
+    }
+  }`;
+
+  const response = await graphqlClient.request<FindShopResponse>(gql`
+    ${query}
+  `);
+
+  console.log(response, "RESPONSE");
+
+  // const webhooks = await admin.rest.resources.Webhook.all({
+  //   session,
+  //   limit: 20,
+  // });
+
+  // console.log(webhooks.data, "WEBHOOKS");
+
+  if (response.findShop !== null) {
+    return {
+      success: true,
+      type: "session",
+      shop,
+      merchant: response.findShop,
+    };
+  } else {
+    return {
+      success: false,
+      type: "session",
+      shop,
+      message: "Failed",
+    };
+  }
+}
+
 export const action = async ({ request }: ActionFunctionArgs): Promise<any> => {
   try {
     const { admin, session } = await authenticate.admin(request);
@@ -130,41 +173,67 @@ export const action = async ({ request }: ActionFunctionArgs): Promise<any> => {
     const body = await request.formData();
 
     const rawState = body.get("state");
-
-    if (!rawState) throw Error("No state found");
-
     const state: productContextData = JSON.parse(rawState as string);
+
+    const lastFetched = body.get("lastFetched");
+
+    const initial = body.get("initial");
+
+    const rawSession = body.get("session");
+
+    const action = body.get("action");
+
+    if (action === "initial") {
+      const shopSession = JSON.parse(rawSession as string) as ShopSession;
+      if (initial == "true" && !shopSession.fetched) {
+        return await fetchSession(shop);
+      } else if (
+        shopSession.linked &&
+        (!lastFetched || lastFetched === "undefined" || lastFetched === "null")
+      ) {
+        return await analyse(accessToken, shop);
+      } else {
+        return json({ success: false, message: "Session not linked" });
+      }
+    } else if (action === "fetchProducts") {
+      return await analyse(accessToken, shop);
+    }
 
     const query = `
   mutation ($input: SyncShopifyProductsInput!){
      syncShopifyProducts(input: $input)
   }
   `;
+
+    const payload = {
+      itemsToAdd: state.itemsToAdd,
+      itemsToUpdate: state.itemsToUpdate,
+      goodItems: state.goodItems,
+      itemsToRemove: state.itemsToRemove,
+      variantsToAdd: state.variantsToAdd,
+      variantsToUpdate: state.variantsToUpdate,
+      variantsToRemove: state.variantsToRemove,
+      variantOptionsToAdd: state.variantOptionsToAdd,
+      variantNamesToAdd: state.variantNamesToAdd,
+      invalidVariants: state.invalidVariants,
+    };
+
     const response =
       await graphqlClient.request<findItemsWithShopifyIdResponse | null>(
         gql`
           ${query}
         `,
-        { input: { shopifyId: shop, ...state } },
+        { input: { shopifyId: shop, ...payload } },
       );
 
-    return json({ success: true });
+    return { type: "sync", success: true };
   } catch (e) {
     console.log("ERROR AT TRIAL: ", e);
-    return json({ success: false, message: e });
+    return { type: "sync", success: false, message: e };
   }
 };
 
-export const loader: LoaderFunction = async ({
-  params,
-  request,
-}: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-
-  const { shop, accessToken } = session;
-
-  console.log(shop);
-
+async function analyse(accessToken: string, shop: string) {
   try {
     let nextPageCursor: string = undefined;
     let query = setQuery(nextPageCursor);
@@ -224,6 +293,7 @@ export const loader: LoaderFunction = async ({
     );
 
     return {
+      type: "analysis",
       data: productEdges,
       itemsToAdd,
       itemsToUpdate,
@@ -240,47 +310,20 @@ export const loader: LoaderFunction = async ({
     console.log(e);
     return null;
   }
-};
+}
+export const Collections = () => {
+  const actionData = useActionData<typeof action>();
 
-const Collections = () => {
   const { shopSession, updateState } = useShopSession();
   const navigate = useNavigate();
 
-  return (
-    <>
-      {shopSession.linked === true ? (
-        <CollectionContent />
-      ) : (
-        <Page>
-          <Banner
-            title={`Merchant not linked`}
-            action={{
-              content: "Link Merchant",
-              onAction: () => {
-                navigate("/app");
-              },
-            }}
-            tone="critical"
-          >
-            <h3>You need to link a merchant account to sync products.</h3>
-            <h3>Click the link merchant button to link a merchant account.</h3>
-          </Banner>
-        </Page>
-      )}
-    </>
-  );
-};
-
-const CollectionContent = () => {
-  const response = useLoaderData<ProductsResponse>();
-
-  const actionData = useActionData<typeof action>();
-
-  console.log(actionData, "actionData");
-
-  const submit = useSubmit();
+  const fetcher = useFetcher<any>();
 
   const [loading, setLoading] = useState<boolean>(true);
+
+  const [sessionLoading, setSessionLoading] = useState<boolean>(true);
+
+  const [initial, setInitial] = useState<boolean>(true);
 
   const [active, setActive] = useState(false);
 
@@ -291,281 +334,381 @@ const CollectionContent = () => {
     dispatch: Function;
   }>(ProductsContext);
 
-  console.log(state, "state");
-
   useEffect(() => {
-    console.log("DISPATCHINGGGG", actionData);
+    if (initial) {
+      setInitial(false);
 
-    if (response) {
-      dispatch({
-        type: "OVERWRITE_ALL",
-        payload: response,
-      });
-      setLoading(false);
-    }
-
-    if (actionData) {
-      if (actionData?.success === true) {
-        dispatch({ type: "RESET" });
-        shopify.toast.show("Sync Successful");
+      if (shopSession.linked && state.lastFetched) {
+        setLoading(false);
+        setSessionLoading(false);
       } else {
-        if (actionData?.success == false) {
-          if (actionData?.message instanceof String) {
-            shopify.toast.show(`${actionData?.message ?? "An error occured"}`);
-          } else {
-            shopify.toast.show(`"An error occured"`);
+        fetcher.submit(
+          {
+            action: "initial",
+            initial,
+            session: JSON.stringify(shopSession),
+            lastFetched: JSON.stringify(state.lastFetched),
+          },
+          { method: "post" },
+        );
+      }
+    } else if (fetcher.data) {
+      if (fetcher.data.type === "session") {
+        updateState({
+          merchantInfo: fetcher.data?.merchant,
+          shop: fetcher.data?.shop,
+          linked: fetcher.data?.success ?? false,
+          fetched: true,
+        });
+
+        setSessionLoading(false);
+
+        if (!state.lastFetched) {
+          fetcher.submit(
+            {
+              action: "fetchProducts",
+            },
+            { method: "post" },
+          );
+          setLoading(true);
+        } else {
+          setLoading(false);
+        }
+      } else if (fetcher.data.type === "analysis") {
+        dispatch({
+          type: "OVERWRITE_ALL",
+          payload: fetcher.data,
+        });
+
+        setLoading(false);
+        if (sessionLoading) setSessionLoading(false);
+      } else if (fetcher.data.type === "sync") {
+        if (fetcher.data.success === true) {
+          dispatch({ type: "RESET" });
+          shopify.toast.show("Sync Successful");
+        } else {
+          if (fetcher.data.success === false) {
+            if (fetcher.data.message instanceof String) {
+              shopify.toast.show(
+                `${fetcher.data.message ?? "An error occured"}`,
+              );
+            } else {
+              shopify.toast.show(`"An error occured"`);
+            }
           }
         }
+        if (loading) setLoading(false);
       }
-      if (loading) setLoading(false);
     }
-  }, [actionData]);
+  }, [fetcher.data]);
 
   return (
-    <Page>
-      <Layout.Section>
-        <Card>
-          <div>
-            <InlineStack>
-              <div>
-                <Box padding="150">
-                  <Badge tone="critical-strong">
-                    {`${state.invalidVariants.length} Variants without images`}
-                  </Badge>
-                </Box>
-              </div>
-              <div>
-                <Box padding="150">
-                  <Badge tone="info">
-                    {`${state.itemsToAdd.length} Products to add`}
-                  </Badge>
-                </Box>
-              </div>
-              <div>
-                <Box padding="150">
-                  <Badge tone="success">
-                    {`${state.itemsToUpdate.length} Products to update info`}
-                  </Badge>
-                </Box>
-              </div>
-              <div>
-                <Box padding="150">
-                  <Badge tone="warning">
-                    {`${state.itemsToRemove.length} Products to Remove`}
-                  </Badge>
-                </Box>
-              </div>
-              <div>
-                <Box padding="150">
-                  <Badge tone="success">
-                    {`${state.variantsToAdd.length} Variants to add to existing Products`}
-                  </Badge>
-                </Box>
-              </div>
-              <div>
-                <Box padding="150">
-                  <Badge tone="info">
-                    {`${state.variantsToUpdate.length} Variants to update in existing products`}
-                  </Badge>
-                </Box>
-              </div>
-              <div>
-                <Box padding="150">
-                  <Badge tone="warning">
-                    {`${state.variantsToRemove.length} Variants to remove from exisiting products`}
-                  </Badge>
-                </Box>
-              </div>
-            </InlineStack>
-          </div>
-          {!loading &&
-            hasUpdates(state) &&
-            state.invalidVariants.length == 0 && (
-              <div>
-                <Banner
-                  title="Order Processing On Hold"
-                  action={{
-                    disabled: !hasUpdates(state),
-                    content: "Sync Products",
-                    onAction: hasUpdates(state) ? handleChange : null,
-                  }}
-                  tone="warning"
-                >
-                  <h3>
-                    Syncronize products to be able to process orders again.
-                  </h3>
-                </Banner>
-              </div>
-            )}
-          {!loading && state.invalidVariants.length > 0 && (
-            <div>
-              <Banner
-                title="Invalid Product Variants"
-                action={{
-                  disabled: !hasUpdates(state),
-                  content: "Sync Valid Products",
-                  onAction: hasUpdates(state) ? handleChange : null,
-                }}
-                tone="critical"
-              >
-                <h3>
-                  You need to fix all variants without images to make the sync
-                  successful and be able to <b>process orders</b>. Way to fix
-                  invalid variants:
-                </h3>
-                <ol>
-                  <li>Add an image for the variant</li>
-                  <li>Add an image for the parent product of the variant</li>
-                  <li>Remove the variant</li>
-                </ol>
-              </Banner>
-            </div>
-          )}
-        </Card>
-      </Layout.Section>
-      <Form method="post">
-        <input type="hidden" name="state" value={JSON.stringify(state)} />
-        <Modal
-          open={active}
-          onClose={handleChange}
-          title={
-            state.invalidVariants.length > 0
-              ? "Risky Action"
-              : "Sync Confirmation"
-          }
-          primaryAction={{
-            content: "Cancel",
-            onAction: () => {
-              handleChange();
-            },
-          }}
-          secondaryActions={[
-            {
-              content: "Proceed With Sync",
-              onAction: () => {
-                console.log("PROCEEDING", state);
-                setLoading(true);
-                handleChange();
-                const formData = new FormData();
-                formData.append("state", JSON.stringify(state));
-
-                submit(formData, { method: "post" });
-              },
-            },
-          ]}
-        >
-          <Modal.Section>
-            <BlockStack>
-              {state.invalidVariants.length > 0 ? (
-                <Banner tone="critical">
-                  <div style={{ padding: "25px" }}>
-                    <p>
-                      Be Aware that you have {state.invalidVariants.length}{" "}
-                      variants without images
-                    </p>
-                    <p>
-                      This means if you proceed these actions will apply on
-                      these variants
-                    </p>
-                    <ol>
-                      <li>
-                        Orders will still be on hold until these variants are
-                        fixed.
-                      </li>
-                      <li>
-                        If variant already existed in Greenline system, it will
-                        be removed
-                      </li>
-                      <li>
-                        If variant did not exist, it will not be synced with
-                        Greenline system
-                      </li>
-                    </ol>
-                  </div>
-                </Banner>
-              ) : (
-                <Banner>
-                  <div style={{ padding: "25px" }}>
-                    <p>
-                      Please make sure your products are updated correctly, this
-                      action cannot be undone unless you manually revert the
-                      changes from your shopify products.
-                    </p>
-                  </div>
-                </Banner>
-              )}
-            </BlockStack>
-          </Modal.Section>
-        </Modal>
-      </Form>
-      {loading ? (
+    <Page title="Merchant Products">
+      {sessionLoading ? (
         <Layout.Section>
-          <div style={{ alignContent: "center" }}>
-            <Card>
-              <div style={{ alignContent: "center" }}>
-                <Spinner
-                  accessibilityLabel="Loading form field"
-                  hasFocusableParent={false}
-                />
-              </div>
-            </Card>
-          </div>
-        </Layout.Section>
-      ) : (
-        <Layout.Section variant="oneThird">
           <Card>
-            {response.data.map((edge: Edge) => {
-              const item = edge.node;
-              return item.variants.nodes.map((variant) => {
-                return (
-                  <div style={{ padding: 5 }}>
-                    <Card>
-                      <InlineStack>
-                        <div>
-                          {variant.image != null && (
-                            <Image
-                              width={50}
-                              source={variant.image.url ?? ""}
-                              alt={"image"}
-                            ></Image>
-                          )}
-                        </div>
-                        <div style={{ paddingLeft: 5 }}>
-                          <Text as={"h2"}>{variant.displayName}</Text>
-                          <Text as={"h6"}>
-                            <div style={{ color: "#afafaf" }}>
-                              {variant.sku}
-                            </div>
-                          </Text>
-                          <Badge
-                            tone={
-                              variant.synced == true ? "success" : "critical"
-                            }
-                          >
-                            {variant.synced == true
-                              ? "Synced"
-                              : state.variantsToUpdate.includes(variant)
-                                ? "Out Of Date"
-                                : "New"}
-                          </Badge>
-                        </div>
-                        <div style={{ marginLeft: "auto" }}>
-                          {variant.image === null &&
-                            !item.images.nodes.find((e) => e.url != undefined)
-                              ?.url && (
-                              <Badge tone="critical-strong">
-                                Missing Image
-                              </Badge>
-                            )}
-                        </div>
-                      </InlineStack>
-                    </Card>
-                  </div>
-                );
-              });
-            })}
+            <Spinner aria-label="Loading Products" />
           </Card>
         </Layout.Section>
+      ) : !shopSession.linked ? (
+        <Banner
+          title={`Merchant not linked`}
+          action={{
+            content: "Link Merchant",
+            onAction: () => {
+              navigate("/app");
+            },
+          }}
+          tone="critical"
+        >
+          <h3>You need to link a merchant account to sync products.</h3>
+          <h3>Click the link merchant button to link a merchant account.</h3>
+        </Banner>
+      ) : (
+        <>
+          {state.lastFetched && (
+            <>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "flex-end", // Aligns elements to the right
+                }}
+              >
+                <div style={{ marginBottom: "8px" }}>
+                  <Button
+                    icon={RefreshIcon}
+                    tone="success"
+                    onClick={() => {
+                      setLoading(true);
+                      fetcher.submit(
+                        {
+                          action: "fetchProducts",
+                        },
+                        { method: "POST" },
+                      );
+                    }}
+                  >
+                    Refetch
+                  </Button>
+                </div>
+                <div>
+                  <Badge>{`Last Fetched: ${state.lastFetched}`}</Badge>
+                </div>
+              </div>
+            </>
+          )}
+
+          <Layout.Section>
+            <Card>
+              <div>
+                <InlineStack>
+                  <div>
+                    <Box padding="150">
+                      <Badge tone="critical-strong">
+                        {`${state.invalidVariants.length} Variants without images`}
+                      </Badge>
+                    </Box>
+                  </div>
+                  <div>
+                    <Box padding="150">
+                      <Badge tone="info">
+                        {`${state.itemsToAdd.length} Products to add`}
+                      </Badge>
+                    </Box>
+                  </div>
+                  <div>
+                    <Box padding="150">
+                      <Badge tone="success">
+                        {`${state.itemsToUpdate.length} Products to update info`}
+                      </Badge>
+                    </Box>
+                  </div>
+                  <div>
+                    <Box padding="150">
+                      <Badge tone="warning">
+                        {`${state.itemsToRemove.length} Products to Remove`}
+                      </Badge>
+                    </Box>
+                  </div>
+                  <div>
+                    <Box padding="150">
+                      <Badge tone="success">
+                        {`${state.variantsToAdd.length} Variants to add to existing Products`}
+                      </Badge>
+                    </Box>
+                  </div>
+                  <div>
+                    <Box padding="150">
+                      <Badge tone="info">
+                        {`${state.variantsToUpdate.length} Variants to update in existing products`}
+                      </Badge>
+                    </Box>
+                  </div>
+                  <div>
+                    <Box padding="150">
+                      <Badge tone="warning">
+                        {`${state.variantsToRemove.length} Variants to remove from exisiting products`}
+                      </Badge>
+                    </Box>
+                  </div>
+                </InlineStack>
+              </div>
+              {!loading &&
+                hasUpdates(state) &&
+                state.invalidVariants.length == 0 && (
+                  <div>
+                    <Banner
+                      title="Order Processing On Hold"
+                      action={{
+                        disabled: !hasUpdates(state),
+                        content: "Sync Products",
+                        onAction: hasUpdates(state) ? handleChange : null,
+                      }}
+                      tone="warning"
+                    >
+                      <h3>
+                        Syncronize products to be able to process orders again.
+                      </h3>
+                    </Banner>
+                  </div>
+                )}
+              {!loading && state.invalidVariants.length > 0 && (
+                <div>
+                  <Banner
+                    title="Invalid Product Variants"
+                    action={{
+                      disabled: !hasUpdates(state),
+                      content: "Sync Valid Products",
+                      onAction: hasUpdates(state) ? handleChange : null,
+                    }}
+                    tone="critical"
+                  >
+                    <h3>
+                      You need to fix all variants without images to make the
+                      sync successful and be able to <b>process orders</b>. Way
+                      to fix invalid variants:
+                    </h3>
+                    <ol>
+                      <li>Add an image for the variant</li>
+                      <li>
+                        Add an image for the parent product of the variant
+                      </li>
+                      <li>Remove the variant</li>
+                    </ol>
+                  </Banner>
+                </div>
+              )}
+            </Card>
+          </Layout.Section>
+          <Form method="post">
+            <input type="hidden" name="state" value={JSON.stringify(state)} />
+            <Modal
+              open={active}
+              onClose={handleChange}
+              title={
+                state.invalidVariants.length > 0
+                  ? "Risky Action"
+                  : "Sync Confirmation"
+              }
+              primaryAction={{
+                content: "Cancel",
+                onAction: () => {
+                  handleChange();
+                },
+              }}
+              secondaryActions={[
+                {
+                  content: "Proceed With Sync",
+                  onAction: () => {
+                    console.log("PROCEEDING", state);
+                    setLoading(true);
+                    handleChange();
+                    const formData = new FormData();
+                    formData.append("state", JSON.stringify(state));
+
+                    fetcher.submit(formData, { method: "post" });
+                  },
+                },
+              ]}
+            >
+              <Modal.Section>
+                <BlockStack>
+                  {state.invalidVariants.length > 0 ? (
+                    <Banner tone="critical">
+                      <div style={{ padding: "25px" }}>
+                        <p>
+                          Be Aware that you have {state.invalidVariants.length}{" "}
+                          variants without images
+                        </p>
+                        <p>
+                          This means if you proceed these actions will apply on
+                          these variants
+                        </p>
+                        <ol>
+                          <li>
+                            Orders will still be on hold until these variants
+                            are fixed.
+                          </li>
+                          <li>
+                            If variant already existed in Greenline system, it
+                            will be removed
+                          </li>
+                          <li>
+                            If variant did not exist, it will not be synced with
+                            Greenline system
+                          </li>
+                        </ol>
+                      </div>
+                    </Banner>
+                  ) : (
+                    <Banner>
+                      <div style={{ padding: "25px" }}>
+                        <p>
+                          Please make sure your products are updated correctly,
+                          this action cannot be undone unless you manually
+                          revert the changes from your shopify products.
+                        </p>
+                      </div>
+                    </Banner>
+                  )}
+                </BlockStack>
+              </Modal.Section>
+            </Modal>
+          </Form>
+          {loading ? (
+            <Layout.Section>
+              <div style={{ alignContent: "center" }}>
+                <Card>
+                  <div style={{ alignContent: "center" }}>
+                    <Spinner
+                      accessibilityLabel="Loading form field"
+                      hasFocusableParent={false}
+                    />
+                  </div>
+                </Card>
+              </div>
+            </Layout.Section>
+          ) : (
+            <Layout.Section variant="oneThird">
+              <Card>
+                {state.data.map((edge: Edge) => {
+                  const item = edge.node;
+                  return item.variants.nodes.map((variant) => {
+                    return (
+                      <div style={{ padding: 5 }}>
+                        <Card>
+                          <InlineStack>
+                            <div>
+                              {variant.image != null && (
+                                <Image
+                                  width={50}
+                                  source={variant.image.url ?? ""}
+                                  alt={"image"}
+                                ></Image>
+                              )}
+                            </div>
+                            <div style={{ paddingLeft: 5 }}>
+                              <Text as={"h2"}>{variant.displayName}</Text>
+                              <Text as={"h6"}>
+                                <div style={{ color: "#afafaf" }}>
+                                  {variant.sku}
+                                </div>
+                              </Text>
+                              <Badge
+                                tone={
+                                  variant.synced == true
+                                    ? "success"
+                                    : "critical"
+                                }
+                              >
+                                {variant.synced == true
+                                  ? "Synced"
+                                  : state.variantsToUpdate.includes(variant)
+                                    ? "Out Of Date"
+                                    : "New"}
+                              </Badge>
+                            </div>
+                            <div style={{ marginLeft: "auto" }}>
+                              {variant.image === null &&
+                                !item.images.nodes.find(
+                                  (e) => e.url != undefined,
+                                )?.url && (
+                                  <Badge tone="critical-strong">
+                                    Missing Image
+                                  </Badge>
+                                )}
+                            </div>
+                          </InlineStack>
+                        </Card>
+                      </div>
+                    );
+                  });
+                })}
+              </Card>
+            </Layout.Section>
+          )}
+        </>
       )}
     </Page>
   );

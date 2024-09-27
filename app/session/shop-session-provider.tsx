@@ -16,6 +16,7 @@ export const ShopContextProvider: React.FunctionComponent<Props> = ({
    */
   const [shopSession, setShopSession] = useState<ShopSession>({
     linked: false,
+    fetched: false,
   });
 
   /**
@@ -24,8 +25,7 @@ export const ShopContextProvider: React.FunctionComponent<Props> = ({
   const updateState = (newState: Partial<ShopSession>) => {
     setShopSession((prevState) => {
       const updatedState = { ...prevState };
-      console.log("OLD DATA: ", updatedState);
-      console.log("NEW DATA: ", newState);
+
       for (const key in newState) {
         if (newState[key]) {
           updatedState[key] = newState[key];
@@ -40,9 +40,9 @@ export const ShopContextProvider: React.FunctionComponent<Props> = ({
    * Function to reset the shop session
    */
   const resetSession = () => {
-    console.log("RESET SHOP SESSION");
     setShopSession({
       linked: false, // or any default values you want to set
+      fetched: false,
     });
   };
 
