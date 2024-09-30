@@ -2,7 +2,7 @@
 
 client_id = "b07d3deef8c6b0b1b0b50aa79aa2350b"
 name = "Greenline Merchant"
-handle = "greenline-merchnt"
+handle = "greenline-merchant"
 # application_url = "https://wellness-polished-eva-favorite.trycloudflare.com"
 application_url = "https://shop.greenlineco.site"
 embedded = true
