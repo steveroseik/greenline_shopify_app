@@ -17,7 +17,7 @@ import { ShopSessionContext } from "~/session/shop-session";
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   await authenticate.admin(request);
 
-  console.log("REACHED HERE", process.env.SHOPIFY_API_KEY);
+  console.log("REACHED HERE 53", process.env.SHOPIFY_API_KEY);
 
   // console.log("DEVMODE", devMode);
   // console.log("ENV", process.env.DEV_MODE);
