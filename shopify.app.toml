@@ -3,7 +3,8 @@
 client_id = "b07d3deef8c6b0b1b0b50aa79aa2350b"
 name = "Greenline Merchant"
 handle = "greenline-merchnt"
-application_url = "https://wellness-polished-eva-favorite.trycloudflare.com"
+# application_url = "https://wellness-polished-eva-favorite.trycloudflare.com"
+application_url = "https://shop.greenlineco.site"
 embedded = true
 
 [build]
@@ -16,10 +17,14 @@ include_config_on_deploy = true
 scopes = "customer_read_customers,read_customers,read_discounts,read_draft_orders,read_orders,read_payment_terms,read_products,read_returns,write_draft_orders,write_orders,write_products,write_returns"
 
 [auth]
+
+#redirect_urls = [
+ # "https://wellness-polished-eva-favorite.trycloudflare.com/auth/callback",
+  #"https://wellness-polished-eva-favorite.trycloudflare.com/auth/shopify/callback",
+  #"https://wellness-polished-eva-favorite.trycloudflare.com/api/auth/callback"
+#]
 redirect_urls = [
-  "https://wellness-polished-eva-favorite.trycloudflare.com/auth/callback",
-  "https://wellness-polished-eva-favorite.trycloudflare.com/auth/shopify/callback",
-  "https://wellness-polished-eva-favorite.trycloudflare.com/api/auth/callback"
+  "https://shop.greenlineco.site/auth/callback"
 ]
 
 [webhooks]
