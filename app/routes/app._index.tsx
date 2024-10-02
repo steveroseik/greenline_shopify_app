@@ -94,7 +94,7 @@ export const action = async ({ request }: ActionFunctionArgs): Promise<any> => {
 
   switch (action) {
     case "signIn":
-      return signInActionFunction(formData);
+      return signInActionFunction(formData, shop);
     case "linkShop":
       return linkShopActionFunction(shop, formData, session, admin);
     default:
@@ -137,7 +137,7 @@ const linkShopActionFunction = async (
   };
 };
 
-const signInActionFunction = async (formData: FormData) => {
+const signInActionFunction = async (formData: FormData, shop: String) => {
   const email = formData.get("email");
   const password = formData.get("password");
 
@@ -161,7 +161,8 @@ const signInActionFunction = async (formData: FormData) => {
   const query = `mutation {
   signInFromShopify(input: {
     email:"${email}",
-    password:"${password}"
+    password:"${password}",
+    shopifyId: "${shop}"
   })
 }`;
 
