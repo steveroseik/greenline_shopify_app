@@ -8,6 +8,7 @@ import {
 export interface OrderDTO {
   id: string;
   synced: boolean;
+  valid: boolean;
   name: string;
   customerDetails: Customer;
   shippingDetails: ShippingAddress;

@@ -85,6 +85,9 @@ export function generateNormalOrderDTO(order: OrdersNode): OrderDTO {
   return {
     id: order.id,
     synced: false,
+    valid:
+      order.shippingAddress?.address1 !== null ||
+      order.shippingAddress?.address2 !== null,
     name: order.name,
     customerDetails: order.customer,
     shippingDetails: order.shippingAddress,
@@ -120,6 +123,9 @@ export function generateReturnOrderDTO(order: OrdersNode): OrderDTO {
   return {
     id: returnOrder.id,
     synced: false,
+    valid:
+      order.shippingAddress?.address1 !== null ||
+      order.shippingAddress?.address2 !== null,
     name: returnOrder.name,
     customerDetails: order.customer,
     shippingDetails: order.shippingAddress,
@@ -161,6 +167,9 @@ export function generateExchangeOrderDTO(
   return {
     id: exchangeOrder.id,
     synced: false,
+    valid:
+      order.shippingAddress?.address1 !== null ||
+      order.shippingAddress?.address2 !== null,
     name: exchangeOrder.name,
     fullyPaid: order.fullyPaid,
     customerDetails: order.customer,

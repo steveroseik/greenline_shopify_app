@@ -129,7 +129,7 @@ export interface ReturnLineItemsNode {
 }
 
 export interface ShippingAddress {
-  address1: string;
+  address1: string | null;
   address2: null | string;
   name: string;
   phone: null | string;

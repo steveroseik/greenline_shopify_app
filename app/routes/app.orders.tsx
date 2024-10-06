@@ -484,10 +484,12 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onSelect }) => {
               <Text as="p" variant="headingSm">
                 Shipping
               </Text>
-              <Text as="p">
-                {shippingDetails.address1}, {shippingDetails.city},{" "}
-                {shippingDetails.country}
-              </Text>
+              {(shippingDetails.address1 || shippingDetails.address2) && (
+                <Text as="p">
+                  {shippingDetails.address1 ?? shippingDetails.address2},{" "}
+                  {shippingDetails.city}, {shippingDetails.country}
+                </Text>
+              )}
             </div>
             <Text as="p" variant="headingSm">
               {order.orderItems.length} Order Items
