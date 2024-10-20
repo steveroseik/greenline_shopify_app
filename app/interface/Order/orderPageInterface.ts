@@ -44,9 +44,9 @@ export interface Money {
 
 export interface Customer {
   firstName: null | string;
-  lastName: string;
+  lastName: string | null;
   verifiedEmail: boolean;
-  email: string;
+  email: string | null;
   phone: null | string;
 }
 

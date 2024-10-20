@@ -233,6 +233,8 @@ export default function Index() {
         linked: loaderData?.success ?? false,
         fetched: true,
       });
+
+      console.log("LOADER DATA", loaderData);
     }
 
     // Update shop session with action data if necessary

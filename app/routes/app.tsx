@@ -28,7 +28,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 // const devMode = process.env.DEV_MODE === "true";
 // console.log("DEVMODE", devMode);
 
-const endpoint = false
+const endpoint = true
   ? `http://localhost:3001/graphql`
   : "https://greenlineco.site/graphql";
 export const graphqlClient = new GraphQLClient(endpoint, {

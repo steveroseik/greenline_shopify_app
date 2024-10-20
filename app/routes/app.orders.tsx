@@ -116,8 +116,6 @@ async function fetchSession(shop: string) {
     ${query}
   `);
 
-  console.log(response, "RESPONSE");
-
   // const webhooks = await admin.rest.resources.Webhook.all({
   //   session,
   //   limit: 20,
@@ -149,7 +147,7 @@ async function syncOrders(
   shop: string,
 ) {
   const orders: OrderDTO[] = JSON.parse(formData.get("orders") as string);
-  const merchantId = parseInt(formData.get("merchantId") as string);
+  const merchantId: number = parseInt(formData.get("merchantId") as string);
 
   try {
     const { createShopifyOrders } = await graphqlClient.request<{
@@ -191,9 +189,6 @@ async function paginate(
   const cursor = formData.get("cursor");
   const direction = formData.get("direction");
 
-  console.log("Cursor:", cursor);
-  console.log("Direction:", direction);
-
   let query;
 
   if (!refresh) {
@@ -207,7 +202,6 @@ async function paginate(
     lastQuery = query;
   } else {
     query = lastQuery;
-    console.log("LAST QUERY", query);
   }
 
   try {
@@ -253,17 +247,15 @@ const OrdersView = () => {
   const [loading, setLoading] = useState(true);
   const [initial, setInitial] = useState<boolean>(true);
   const [pageInfo, setPageInfo] = useState({
-    hasNextPage: false,
-    endCursor: "",
-    startCursor: "",
-    hasPreviousPage: false,
+    hasNextPage: state.page?.pageInfo.hasNextPage ?? false,
+    endCursor: state.page?.pageInfo.endCursor ?? "",
+    startCursor: state.page?.pageInfo.startCursor ?? "",
+    hasPreviousPage: state.page?.pageInfo.hasPreviousPage ?? false,
   });
 
   const fetcher = useFetcher<any>();
 
   useEffect(() => {
-    console.log("INIT? ", initial);
-    console.log("fetched", fetcher.data);
     if (initial) {
       setInitial(false);
 
@@ -303,8 +295,7 @@ const OrdersView = () => {
         }
       } else if (fetcher.data.page) {
         dispatch({ type: "SET_ORDERS", payload: fetcher.data.page });
-        console.log("fetcher.data", fetcher.data);
-        console.log("next_info", fetcher.data.page.pageInfo);
+
         setPageInfo(fetcher.data.page.pageInfo);
         setLoading(false);
       }
@@ -315,7 +306,6 @@ const OrdersView = () => {
       }
 
       if (fetcher.data.refreshed === true) {
-        console.log("REFRESHED :::: :: : :::: :: :::: : ::");
         setLoading(false);
       }
     }
@@ -345,6 +335,7 @@ const OrdersView = () => {
       shopify.toast.show("You did not select any orders to sync");
       return;
     }
+
     setLoading(true);
     fetcher.submit(
       {
@@ -372,7 +363,6 @@ const OrdersView = () => {
 
   const handlePreviousPage = () => {
     if (pageInfo.hasPreviousPage) {
-      console.log("Previous page", pageInfo);
       setLoading(true);
       fetcher.submit(
         {
@@ -519,15 +509,18 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onSelect }) => {
             </InlineStack>
 
             <div style={{ margin: "10px" }}></div>
-            <div style={{ marginBottom: "8px" }}>
-              <Text as="p" variant="headingSm">
-                Customer
-              </Text>
-              <Text as="p">
-                {customerDetails.firstName} {customerDetails.lastName} (
-                {customerDetails.email})
-              </Text>
-            </div>
+            {customerDetails && (
+              <div style={{ marginBottom: "8px" }}>
+                <Text as="p" variant="headingSm">
+                  Customer
+                </Text>
+                <Text as="p">
+                  {customerDetails?.firstName ?? ""}{" "}
+                  {customerDetails?.lastName ?? ""} (
+                  {customerDetails?.email ?? "No email"})
+                </Text>
+              </div>
+            )}
             <div style={{ marginBottom: "8px" }}>
               <Text as="p" variant="headingSm">
                 Shipping
@@ -560,7 +553,9 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onSelect }) => {
 
 export function generateMissingReason(order: OrderDTO): string {
   if (!order.valid) {
-    if (
+    if (!order.customerDetails) {
+      return "Missing customer details";
+    } else if (
       order.shippingDetails?.address1 === null &&
       order.shippingDetails?.address2 === null
     ) {
