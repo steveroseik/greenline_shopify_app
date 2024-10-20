@@ -149,6 +149,7 @@ async function syncOrders(
   shop: string,
 ) {
   const orders: OrderDTO[] = JSON.parse(formData.get("orders") as string);
+  const merchantId = parseInt(formData.get("merchantId") as string);
 
   try {
     const { createShopifyOrders } = await graphqlClient.request<{
@@ -158,7 +159,7 @@ async function syncOrders(
         failedOrders?: number[];
       };
     }>(createOrdersMutation(), {
-      input: { orders, merchantId: 1 },
+      input: { orders, merchantId },
     });
 
     const { success, message, failedOrders } = createShopifyOrders;
@@ -166,7 +167,6 @@ async function syncOrders(
     if (success) {
       const response = await paginate(formData, accessToken, admin, shop, true);
 
-      console.log("SYNC R: ", response);
       return {
         ...response,
         message,
@@ -350,6 +350,7 @@ const OrdersView = () => {
       {
         action: "syncOrders",
         orders: JSON.stringify(orders),
+        merchantId: `${shopSession.merchantInfo.id}`,
       },
       { method: "post" },
     );
