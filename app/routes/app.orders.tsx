@@ -92,7 +92,11 @@ export const action: ActionFunction = async ({ request }) => {
       } else if (session.linked) {
         return paginate(formData, accessToken, admin, shop);
       } else {
-        return json({ success: false, message: "Session not linked" });
+        return json({
+          type: "session",
+          success: false,
+          message: "Session not linked",
+        });
       }
     case "fetchOrders":
       return paginate(formData, accessToken, admin, shop);

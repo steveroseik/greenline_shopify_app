@@ -528,6 +528,7 @@ export const Collections = () => {
         }
       }
     }
+    if (sessionLoading) setSessionLoading(false);
   }, [fetcher.data]);
 
   return (
