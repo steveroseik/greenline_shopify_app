@@ -286,7 +286,7 @@ const OrdersView = () => {
 
         if (state.page) {
           setLoading(false);
-        } else {
+        } else if (fetcher.data?.success ?? false) {
           setLoading(true);
           fetcher.submit(
             {

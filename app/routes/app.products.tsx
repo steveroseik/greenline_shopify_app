@@ -449,7 +449,7 @@ export const Collections = () => {
 
         setSessionLoading(false);
 
-        if (!state.lastFetched) {
+        if ((!state.lastFetched && fetcher.data?.success) ?? false) {
           fetcher.submit(
             {
               action: "fetchProducts",
@@ -528,7 +528,6 @@ export const Collections = () => {
         }
       }
     }
-    if (sessionLoading) setSessionLoading(false);
   }, [fetcher.data]);
 
   return (
