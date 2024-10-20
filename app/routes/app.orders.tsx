@@ -99,7 +99,7 @@ export const action: ActionFunction = async ({ request }) => {
     case "refresh":
       return paginate(formData, accessToken, admin, shop, true);
     case "syncOrders":
-      return syncOrders(formData, accessToken, shop);
+      return syncOrders(formData, accessToken, admin, shop);
   }
 };
 
@@ -145,6 +145,7 @@ async function fetchSession(shop: string) {
 async function syncOrders(
   formData: FormData,
   accessToken: string,
+  admin: AdminApiContext,
   shop: string,
 ) {
   const orders: OrderDTO[] = JSON.parse(formData.get("orders") as string);
@@ -161,6 +162,17 @@ async function syncOrders(
     });
 
     const { success, message, failedOrders } = createShopifyOrders;
+
+    if (success) {
+      const response = await paginate(formData, accessToken, admin, shop, true);
+
+      console.log("SYNC R: ", response);
+      return {
+        ...response,
+        message,
+        failedOrders,
+      };
+    }
 
     return { success, message, failedOrders };
   } catch (error) {
@@ -195,6 +207,7 @@ async function paginate(
     lastQuery = query;
   } else {
     query = lastQuery;
+    console.log("LAST QUERY", query);
   }
 
   try {
@@ -209,7 +222,12 @@ async function paginate(
     const orders = await analyzeAndGenerateOrders(data);
 
     return refresh
-      ? json({ refreshed: true })
+      ? json({
+          refreshed: true,
+          page: { orders, pageInfo: data.orders.pageInfo },
+          shop,
+          accessToken,
+        })
       : json({
           page: { orders, pageInfo: data.orders.pageInfo },
           shop,
@@ -319,9 +337,14 @@ const OrdersView = () => {
   };
 
   const handleSyncOrders = async () => {
-    const orders = state.page.orders.filter((order) =>
-      state.selectedOrders.has(order.id),
-    );
+    const orders = state.page.orders
+      .filter((order) => state.selectedOrders.has(order.id))
+      .map(({ valid, ...rest }) => rest);
+
+    if (orders.length === 0) {
+      shopify.toast.show("You did not select any orders to sync");
+      return;
+    }
     setLoading(true);
     fetcher.submit(
       {
@@ -374,9 +397,13 @@ const OrdersView = () => {
           <Card>
             <div>
               <InlineStack>
-                <Button onClick={handleSelectAll}>Select All</Button>
+                <Button onClick={handleSelectAll} disabled={!state.canSelect}>
+                  Select All
+                </Button>
                 <div style={{ padding: "5px" }}></div>
-                <Button onClick={handleDeselectAll}>Deselect All</Button>
+                <Button onClick={handleDeselectAll} disabled={!state.canSelect}>
+                  Deselect All
+                </Button>
                 <div style={{ marginLeft: "auto" }}>
                   <Button variant="primary" onClick={handleSyncOrders}>
                     Sync Orders
@@ -436,6 +463,8 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onSelect }) => {
   const {
     id,
     name,
+    valid,
+    synced,
     createdAt,
     totalPrice,
     orderType,
@@ -453,8 +482,8 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onSelect }) => {
       <Card>
         <Layout>
           <Layout.Section>
-            <InlineStack blockAlign="center">
-              {!order.synced && (
+            <InlineStack blockAlign="start">
+              {!synced && valid && (
                 <Checkbox
                   checked={selected}
                   onChange={(newChecked) => onSelect(id, newChecked)}
@@ -464,12 +493,30 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onSelect }) => {
               <Text as="p" variant="headingSm">
                 {name} ({orderType})
               </Text>
-              <div style={{ marginLeft: "auto" }}>
-                <Badge tone={order.synced === true ? "success" : "critical"}>
-                  {order.synced === true ? "Synced" : "Not Synced"}
-                </Badge>
+              <div
+                style={{
+                  marginLeft: "auto",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "flex-end",
+                }}
+              >
+                <div>
+                  <Badge tone={order.synced === true ? "success" : "critical"}>
+                    {order.synced === true ? "Synced" : "Not Synced"}
+                  </Badge>
+                </div>
+                <div style={{ padding: "5px" }} />
+                <div>
+                  <Badge tone={order.valid === true ? "success" : "critical"}>
+                    {order.valid === true
+                      ? "Valid"
+                      : generateMissingReason(order)}
+                  </Badge>
+                </div>
               </div>
             </InlineStack>
+
             <div style={{ margin: "10px" }}></div>
             <div style={{ marginBottom: "8px" }}>
               <Text as="p" variant="headingSm">
@@ -484,7 +531,7 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onSelect }) => {
               <Text as="p" variant="headingSm">
                 Shipping
               </Text>
-              {(shippingDetails.address1 || shippingDetails.address2) && (
+              {(shippingDetails?.address1 || shippingDetails?.address2) && (
                 <Text as="p">
                   {shippingDetails.address1 ?? shippingDetails.address2},{" "}
                   {shippingDetails.city}, {shippingDetails.country}
@@ -509,3 +556,22 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onSelect }) => {
     </div>
   );
 };
+
+export function generateMissingReason(order: OrderDTO): string {
+  if (!order.valid) {
+    if (
+      order.shippingDetails?.address1 === null &&
+      order.shippingDetails?.address2 === null
+    ) {
+      return "Missing shipping address";
+    } else if (order.shippingDetails?.city === null) {
+      return "Missing city";
+    } else if (order.shippingDetails?.country === null) {
+      return "Missing country";
+    } else if (order.customerDetails?.phone === null) {
+      return "Missing phone number";
+    }
+  }
+
+  return "Unknown";
+}

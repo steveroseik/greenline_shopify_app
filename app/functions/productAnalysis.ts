@@ -144,10 +144,12 @@ function validateAndSyncProduct(
   variantNamesToAdd: string[],
   invalidVariants: VariantsNode[],
 ): void {
-  // Validate product fields (description, name, etc.)
-
   if (
-    dbItem.description === edge.node.description &&
+    dbItem.description ===
+      edge.node.description.substring(
+        0,
+        Math.min(700, edge.node.description.length),
+      ) &&
     dbItem.name === edge.node.title
   ) {
     goodItems.push(edge.node); // Product is up-to-date
@@ -167,7 +169,6 @@ function validateAndSyncProduct(
         variant,
         dbVariant,
         edge,
-        variantsToAdd,
         variantsToUpdate,
         variantsToRemove,
         variantOptionsToAdd,
@@ -176,6 +177,10 @@ function validateAndSyncProduct(
       );
     } else {
       // New variant not in the database
+      variant.itemName = edge.node.title;
+      variant.itemId = dbItem.id;
+      checkVariantImage(variant, edge.node, invalidVariants);
+      addVariantOptions(variant, variantOptionsToAdd, variantNamesToAdd);
       variantsToAdd.push(variant);
     }
   });
@@ -186,7 +191,6 @@ function validateAndSyncVariant(
   variant: VariantsNode,
   dbVariant: ItemVariant,
   edge: Edge,
-  variantsToAdd: VariantsNode[],
   variantsToUpdate: VariantsNode[],
   variantsToRemove: ItemVariant[],
   variantOptionsToAdd: string[],
@@ -241,22 +245,31 @@ function identifyItemsToRemove(
 }
 
 // Main function to analyze products and sync with Shopify
-export async function analyseProducts(
-  products: Edge[],
-  goodItems: EdgeNode[],
-  itemsToAdd: EdgeNode[],
-  itemsToUpdate: EdgeNode[],
-  itemsToRemove: Item[],
-  variantsToAdd: VariantsNode[],
-  variantsToUpdate: VariantsNode[],
-  variantsToRemove: ItemVariant[],
-  variantOptionsToAdd: string[],
-  variantNamesToAdd: string[],
-  invalidVariants: VariantsNode[],
-): Promise<void> {
-  const productIds = products.map((edge) => edge.node.id);
+export async function analyseProducts(products: Edge[]): Promise<{
+  products: Edge[];
+  goodItems: EdgeNode[];
+  itemsToAdd: EdgeNode[];
+  itemsToUpdate: EdgeNode[];
+  itemsToRemove: Item[];
+  variantsToAdd: VariantsNode[];
+  variantsToUpdate: VariantsNode[];
+  variantsToRemove: ItemVariant[];
+  variantOptionsToAdd: string[];
+  variantNamesToAdd: string[];
+  invalidVariants: VariantsNode[];
+}> {
+  let goodItems: EdgeNode[] = [];
+  let itemsToAdd: EdgeNode[] = [];
+  let itemsToUpdate: EdgeNode[] = [];
+  let itemsToRemove: Item[] = [];
+  let variantsToAdd: VariantsNode[] = [];
+  let variantsToUpdate: VariantsNode[] = [];
+  let variantsToRemove: ItemVariant[] = [];
+  let variantOptionsToAdd: string[] = [];
+  let variantNamesToAdd: string[] = [];
+  let invalidVariants: VariantsNode[] = [];
 
-  console.log(`Processing ${productIds.length} products`);
+  const productIds = products.map((edge) => edge.node.id);
 
   const dbItems =
     await graphqlClient.request<findItemsWithShopifyIdResponse | null>(
@@ -328,5 +341,17 @@ export async function analyseProducts(
     );
   }
 
-  console.log("Product analysis complete");
+  return {
+    products,
+    goodItems,
+    itemsToAdd,
+    itemsToUpdate,
+    itemsToRemove,
+    variantsToAdd,
+    variantsToUpdate,
+    variantsToRemove,
+    variantOptionsToAdd,
+    variantNamesToAdd,
+    invalidVariants,
+  };
 }

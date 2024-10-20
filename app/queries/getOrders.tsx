@@ -33,6 +33,12 @@ export const getOrdersQuery = (before?: string, after?: string) => `
             amount
           }
         }
+        totalOutstandingSet{
+          shopMoney{
+            currencyCode
+            amount
+          }
+        }
         totalShippingPriceSet{
           shopMoney{
             currencyCode

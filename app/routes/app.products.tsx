@@ -27,6 +27,7 @@ import {
   Image,
   Text,
   Button,
+  ProgressBar,
 } from "@shopify/polaris";
 import { useRef, useState, useCallback, useContext, useEffect } from "react";
 import { productContextData, ProductsContext } from "~/context/productsContext";
@@ -46,6 +47,8 @@ import { findItemsWithShopifyIdResponse } from "~/interface/Product/find-items-w
 import { analyseProducts } from "~/functions/productAnalysis";
 import { FindShopResponse } from "~/interface/Shop/find-shop";
 import { RefreshIcon } from "@shopify/polaris-icons";
+import { sleep } from "~/sleep-func";
+import { SyncShopifyItemsResponse } from "~/interface/Product/sync-shopify-items.response";
 
 export interface ProductsResponse extends productContextData {
   data: Edge[];
@@ -82,12 +85,12 @@ function setQuery(nextPageCursor?: string) {
                     currencyCode
                   }
                 }
-                images(first:20){
+                images(first:1){
                   nodes{
                     url
                   }
                 }
-                variants(first: 10){
+                variants(first: 100){
                   nodes{
                       id
                       sku
@@ -137,8 +140,6 @@ async function fetchSession(shop: string) {
   const response = await graphqlClient.request<FindShopResponse>(gql`
     ${query}
   `);
-
-  console.log(response, "RESPONSE");
 
   // const webhooks = await admin.rest.resources.Webhook.all({
   //   session,
@@ -197,58 +198,143 @@ export const action = async ({ request }: ActionFunctionArgs): Promise<any> => {
       }
     } else if (action === "fetchProducts") {
       return await analyse(accessToken, shop);
+    } else if (action === "sync") {
+      console.log("SYNCING PORTION, ", state.lastSyncedIndex);
+      return await syncPortion(state.data, shop, state.lastSyncedIndex);
     }
-
-    const query = `
-  mutation ($input: SyncShopifyProductsInput!){
-     syncShopifyProducts(input: $input)
-  }
-  `;
-
-    const payload = {
-      itemsToAdd: state.itemsToAdd,
-      itemsToUpdate: state.itemsToUpdate,
-      goodItems: state.goodItems,
-      itemsToRemove: state.itemsToRemove,
-      variantsToAdd: state.variantsToAdd,
-      variantsToUpdate: state.variantsToUpdate,
-      variantsToRemove: state.variantsToRemove,
-      variantOptionsToAdd: state.variantOptionsToAdd,
-      variantNamesToAdd: state.variantNamesToAdd,
-      invalidVariants: state.invalidVariants,
-    };
-
-    const response =
-      await graphqlClient.request<findItemsWithShopifyIdResponse | null>(
-        gql`
-          ${query}
-        `,
-        { input: { shopifyId: shop, ...payload } },
-      );
-
-    return { type: "sync", success: true };
   } catch (e) {
     console.log("ERROR AT TRIAL: ", e);
     return { type: "sync", success: false, message: e };
   }
 };
 
+async function sync(
+  payload: {
+    itemsToAdd: EdgeNode[];
+    itemsToUpdate: EdgeNode[];
+    goodItems: EdgeNode[];
+    itemsToRemove: Item[];
+    variantsToAdd: VariantsNode[];
+    variantsToUpdate: VariantsNode[];
+    variantsToRemove: ItemVariant[];
+    variantOptionsToAdd: string[];
+    variantNamesToAdd: string[];
+    invalidVariants: VariantsNode[];
+  },
+  shop: string,
+) {
+  const query = `
+  mutation ($input: SyncShopifyProductsInput!){
+     syncShopifyProducts(input: $input)
+  }
+  `;
+
+  try {
+    const response =
+      await graphqlClient.request<SyncShopifyItemsResponse | null>(
+        gql`
+          ${query}
+        `,
+        { input: { shopifyId: shop, ...payload } },
+      );
+
+    console.log(response);
+    return {
+      type: "sync",
+      success: response.syncShopifyProducts.success,
+      data: response.syncShopifyProducts.data,
+      message: response.syncShopifyProducts.message,
+    };
+  } catch (e) {
+    console.log(e);
+    return { type: "sync", success: false, message: e };
+  }
+}
+
+async function syncPortion(
+  products: Edge[],
+  shop: string,
+  lastSyncedIndex?: number,
+) {
+  const end =
+    Math.min(10, products.length - (lastSyncedIndex ?? 0)) +
+    (lastSyncedIndex ?? 0);
+  const portion = products.slice(lastSyncedIndex ?? 0, end);
+
+  try {
+    const {
+      itemsToAdd,
+      itemsToUpdate,
+      goodItems,
+      itemsToRemove,
+      variantsToAdd,
+      variantsToUpdate,
+      variantsToRemove,
+      variantOptionsToAdd,
+      variantNamesToAdd,
+      invalidVariants,
+    } = await analyseProducts(portion);
+
+    if (
+      itemsToAdd.length == 0 &&
+      itemsToUpdate.length == 0 &&
+      itemsToRemove.length == 0 &&
+      variantsToAdd.length == 0 &&
+      variantsToUpdate.length == 0 &&
+      variantsToRemove.length == 0
+    ) {
+      return {
+        type: "sync",
+        success: true,
+        message: "No updates",
+        lastSyncedIndex: end,
+        hasNext: end < products.length - 1,
+      };
+    }
+
+    const response = await sync(
+      {
+        itemsToAdd,
+        itemsToUpdate,
+        goodItems,
+        itemsToRemove,
+        variantsToAdd,
+        variantsToUpdate,
+        variantsToRemove,
+        variantOptionsToAdd,
+        variantNamesToAdd,
+        invalidVariants,
+      },
+      shop,
+    );
+
+    return {
+      ...response,
+
+      type: "sync",
+      lastSyncedIndex: end,
+      hasNext: end < products.length - 1,
+    };
+  } catch (e) {
+    console.log(e);
+    return {
+      type: "sync",
+      success: false,
+      message: e,
+      lastSyncedIndex: end,
+      hasNext: end < products.length - 1,
+    };
+  }
+}
+
 async function analyse(accessToken: string, shop: string) {
   try {
     let nextPageCursor: string = undefined;
     let query = setQuery(nextPageCursor);
-    const itemsToAdd: EdgeNode[] = [];
-    const itemsToUpdate: EdgeNode[] = [];
-    const goodItems: EdgeNode[] = [];
-    let itemsToRemove: Item[] = [];
-    const variantsToAdd: VariantsNode[] = [];
-    const variantsToUpdate: VariantsNode[] = [];
-    let variantsToRemove: ItemVariant[] = [];
-    const variantOptionsToAdd: string[] = [];
-    const variantNamesToAdd: string[] = [];
-    const invalidVariants: VariantsNode[] = [];
+
     const productEdges: Edge[] = [];
 
+    let trial = 0;
     do {
       const response = await fetch(
         `https://${shop}/admin/api/${apiVersion}/graphql.json`,
@@ -262,11 +348,12 @@ async function analyse(accessToken: string, shop: string) {
         },
       );
 
-      console.log(`response status: ${response.status}`);
+      if (!response.ok) {
+        trial++;
+      }
 
       if (response.ok) {
         const jsonResponse: ProductsPage = await response.json();
-
         productEdges.push(...jsonResponse.data.products.edges);
 
         if (jsonResponse.data.products.pageInfo.hasNextPage) {
@@ -276,13 +363,12 @@ async function analyse(accessToken: string, shop: string) {
           break;
         }
       }
-    } while (true);
+    } while (trial < 10);
 
-    await analyseProducts(
-      productEdges,
-      goodItems,
+    const {
       itemsToAdd,
       itemsToUpdate,
+      goodItems,
       itemsToRemove,
       variantsToAdd,
       variantsToUpdate,
@@ -290,7 +376,7 @@ async function analyse(accessToken: string, shop: string) {
       variantOptionsToAdd,
       variantNamesToAdd,
       invalidVariants,
-    );
+    } = await analyseProducts(productEdges);
 
     return {
       type: "analysis",
@@ -375,29 +461,71 @@ export const Collections = () => {
           setLoading(false);
         }
       } else if (fetcher.data.type === "analysis") {
+        console.log(
+          "Analysis",
+          fetcher.data.data.map((e) => e.node.title),
+        );
         dispatch({
           type: "OVERWRITE_ALL",
           payload: fetcher.data,
         });
 
         setLoading(false);
+
         if (sessionLoading) setSessionLoading(false);
+        if (loading) setLoading(false);
       } else if (fetcher.data.type === "sync") {
         if (fetcher.data.success === true) {
-          dispatch({ type: "RESET" });
-          shopify.toast.show("Sync Successful");
-        } else {
-          if (fetcher.data.success === false) {
-            if (fetcher.data.message instanceof String) {
+          if (fetcher.data.hasNext) {
+            dispatch({
+              type: "CONTINUE_SYNC",
+              payload: { endIndex: fetcher.data.lastSyncedIndex },
+            });
+
+            console.log("Updated last index: ", state.lastSyncedIndex);
+
+            fetcher.submit(
+              {
+                action: "sync",
+                state: JSON.stringify({
+                  ...state,
+                  lastSyncedIndex: fetcher.data.lastSyncedIndex,
+                }),
+              },
+              { method: "post" },
+            );
+            if (typeof fetcher.data.message == "string") {
               shopify.toast.show(
                 `${fetcher.data.message ?? "An error occured"}`,
               );
             } else {
               shopify.toast.show(`"An error occured"`);
             }
+          } else {
+            dispatch({ type: "END_SYNC" });
+            dispatch({ type: "RESET" });
+            shopify.toast.show("Sync Successful");
+            fetcher.submit(
+              {
+                action: "fetchProducts",
+              },
+              { method: "POST" },
+            );
+          }
+          if (typeof fetcher.data.message == "string") {
+            shopify.toast.show(`${fetcher.data.message ?? "An error occured"}`);
+          } else {
+            shopify.toast.show(`"An error occured"`);
+          }
+        } else {
+          dispatch({ type: "END_SYNC" });
+          if (loading) setLoading(false);
+          if (typeof fetcher.data.message == "string") {
+            shopify.toast.show(`${fetcher.data.message ?? "An error occured"}`);
+          } else {
+            shopify.toast.show(`"An error occured"`);
           }
         }
-        if (loading) setLoading(false);
       }
     }
   }, [fetcher.data]);
@@ -406,9 +534,16 @@ export const Collections = () => {
     <Page title="Merchant Products">
       {sessionLoading ? (
         <Layout.Section>
-          <Card>
-            <Spinner aria-label="Loading Products" />
-          </Card>
+          <div style={{ alignContent: "center" }}>
+            <Card>
+              <div style={{ alignContent: "center" }}>
+                <Spinner
+                  accessibilityLabel="Loading form field"
+                  hasFocusableParent={false}
+                />
+              </div>
+            </Card>
+          </div>
         </Layout.Section>
       ) : !shopSession.linked ? (
         <Banner
@@ -581,11 +716,12 @@ export const Collections = () => {
                 {
                   content: "Proceed With Sync",
                   onAction: () => {
-                    console.log("PROCEEDING", state);
                     setLoading(true);
                     handleChange();
+                    dispatch({ type: "START_SYNC" });
                     const formData = new FormData();
                     formData.append("state", JSON.stringify(state));
+                    formData.append("action", "sync");
 
                     fetcher.submit(formData, { method: "post" });
                   },
@@ -636,19 +772,16 @@ export const Collections = () => {
               </Modal.Section>
             </Modal>
           </Form>
+
           {loading ? (
-            <Layout.Section>
-              <div style={{ alignContent: "center" }}>
-                <Card>
-                  <div style={{ alignContent: "center" }}>
-                    <Spinner
-                      accessibilityLabel="Loading form field"
-                      hasFocusableParent={false}
-                    />
-                  </div>
-                </Card>
-              </div>
-            </Layout.Section>
+            state.syncing ? (
+              <SyncingProductsScreen
+                totalProducts={state.data.length}
+                syncedProducts={state.lastSyncedIndex}
+              />
+            ) : (
+              <LoadingScreen />
+            )
           ) : (
             <Layout.Section variant="oneThird">
               <Card>
@@ -749,6 +882,95 @@ const Placeholder = ({
         </div>
       </InlineStack>
     </div>
+  );
+};
+
+const LoadingScreen = () => {
+  const bannerRef = useRef(null);
+
+  useEffect(() => {
+    // Show the banner after 10 seconds if it is still loading
+    const timer = setTimeout(() => {
+      if (bannerRef.current) {
+        bannerRef.current.style.display = "block";
+      }
+    }, 10000);
+
+    // Cleanup timer if the component unmounts before 10 seconds
+    return () => clearTimeout(timer);
+  }, []);
+
+  return (
+    <Layout.Section>
+      <Card>
+        <div style={{ textAlign: "center", padding: "20px" }}>
+          <Spinner accessibilityLabel="Loading Products" size="large" />
+          <h1 style={{ margin: "10px 0" }}>
+            Loading your products and variants...
+          </h1>
+          <Text as="p" variant="bodyMd" alignment="center">
+            The loading time may vary depending on the number of products and
+            variants you have in your store.
+          </Text>
+          <div style={{ margin: "10px 0" }} />
+          <Text as="p" variant="bodyMd" alignment="center">
+            Please don't close this page to ensure everything is loaded
+            correctly.
+          </Text>
+          <div style={{ margin: "20px 0" }} />
+          <div ref={bannerRef} style={{ display: "none" }}>
+            <Banner
+              title="Why is this taking time?"
+              tone="info"
+              onDismiss={() => {
+                if (bannerRef.current) {
+                  bannerRef.current.style.display = "none";
+                }
+              }}
+            >
+              <p>
+                Our system is retrieving all product data and variant details
+                from Shopify. For stores with a large inventory, this may take a
+                little longer. Thank you for your patience!
+              </p>
+            </Banner>
+          </div>
+        </div>
+      </Card>
+    </Layout.Section>
+  );
+};
+
+const SyncingProductsScreen = ({ totalProducts, syncedProducts }) => {
+  const [progress, setProgress] = useState(0);
+
+  // Calculate the progress percentage
+  useEffect(() => {
+    if (totalProducts > 0) {
+      const progressPercentage = (syncedProducts / totalProducts) * 100;
+      setProgress(progressPercentage);
+    }
+  }, [syncedProducts, totalProducts]);
+
+  return (
+    <Layout.Section>
+      <Card>
+        <div style={{ padding: "20px", textAlign: "center" }}>
+          <Spinner accessibilityLabel="Loading Products" size="large" />
+          <Text as="h2" variant="headingMd">
+            Syncing Products
+          </Text>
+          <Text variant="bodyMd" as="h3">
+            {`Synced ${syncedProducts} out of ${totalProducts} products.`}
+          </Text>
+          <ProgressBar progress={progress} size="small" />
+          <Text
+            variant="bodyMd"
+            as="h5"
+          >{`${Math.round(progress)}% completed`}</Text>
+        </div>
+      </Card>
+    </Layout.Section>
   );
 };
 

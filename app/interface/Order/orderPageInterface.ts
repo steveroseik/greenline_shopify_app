@@ -21,6 +21,7 @@ export interface OrdersNode {
   subtotalPriceSet: Set;
   totalTaxSet: Set;
   totalShippingPriceSet: Set;
+  totalOutstandingSet: Set;
   totalPriceSet: Set;
   returns: Returns;
   transactions: Transaction[];

@@ -1,4 +1,5 @@
 import { stat } from "fs";
+import { s } from "node_modules/vite/dist/node/types.d-aGj9QkWt";
 import React, {
   Component,
   PropsWithChildren,
@@ -26,6 +27,8 @@ export interface productContextData {
   variantOptionsToAdd: string[];
   variantNamesToAdd: string[];
   invalidVariants: VariantsNode[];
+  syncing: boolean;
+  lastSyncedIndex?: number;
   lastFetched?: Date;
 }
 
@@ -45,13 +48,33 @@ export const ProductsContext = createContext<{
     variantOptionsToAdd: [],
     variantNamesToAdd: [],
     invalidVariants: [],
+    syncing: false,
     lastFetched: undefined,
+    lastSyncedIndex: undefined,
   },
   dispatch: () => {},
 });
 
 const productsReducer = (state: productContextData, action: any) => {
   switch (action.type) {
+    case "START_SYNC":
+      return {
+        ...state,
+        syncing: true,
+        lastSyncedIndex: 0,
+      };
+    case "CONTINUE_SYNC":
+      return {
+        ...state,
+        syncing: true,
+        lastSyncedIndex: action.payload.endIndex,
+      };
+    case "END_SYNC":
+      return {
+        ...state,
+        syncing: false,
+        lastSyncedIndex: undefined,
+      };
     case "ADD_ITEMS_TO_ADD":
       return {
         ...state,
@@ -162,6 +185,8 @@ const productsReducer = (state: productContextData, action: any) => {
         variantOptionsToAdd: action.payload.variantOptionsToAdd,
         variantNamesToAdd: action.payload.variantNamesToAdd,
         invalidVariants: action.payload.invalidVariants,
+        syncing: state.syncing,
+        lastSyncedIndex: state.lastSyncedIndex,
       };
     case "RESET":
       return {
@@ -177,6 +202,8 @@ const productsReducer = (state: productContextData, action: any) => {
         variantOptionsToAdd: [],
         variantNamesToAdd: [],
         invalidVariants: [],
+        syncing: false,
+        lastSyncedIndex: undefined,
       };
     default:
       return state;
@@ -196,6 +223,7 @@ const ProductsProvider: React.FC = (props: PropsWithChildren) => {
     variantOptionsToAdd: [],
     variantNamesToAdd: [],
     invalidVariants: [],
+    syncing: false,
   });
 
   return (

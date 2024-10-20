@@ -7,6 +7,8 @@ import {
   ExchangeLineItems,
   Set,
   LineItemElement,
+  ShippingAddress,
+  Customer,
 } from "../interface/Order/orderPageInterface";
 import { findOrdersByShopifyId } from "~/queries/findOrdersByShopifyId";
 import { OrderSimilarity } from "~/interface/Order/orderSimilarity.interface";
@@ -85,9 +87,7 @@ export function generateNormalOrderDTO(order: OrdersNode): OrderDTO {
   return {
     id: order.id,
     synced: false,
-    valid:
-      order.shippingAddress?.address1 !== null ||
-      order.shippingAddress?.address2 !== null,
+    valid: isValidOrder(order.shippingAddress, order.customer),
     name: order.name,
     customerDetails: order.customer,
     shippingDetails: order.shippingAddress,
@@ -123,9 +123,7 @@ export function generateReturnOrderDTO(order: OrdersNode): OrderDTO {
   return {
     id: returnOrder.id,
     synced: false,
-    valid:
-      order.shippingAddress?.address1 !== null ||
-      order.shippingAddress?.address2 !== null,
+    valid: isValidOrder(order.shippingAddress, order.customer),
     name: returnOrder.name,
     customerDetails: order.customer,
     shippingDetails: order.shippingAddress,
@@ -167,9 +165,7 @@ export function generateExchangeOrderDTO(
   return {
     id: exchangeOrder.id,
     synced: false,
-    valid:
-      order.shippingAddress?.address1 !== null ||
-      order.shippingAddress?.address2 !== null,
+    valid: isValidOrder(order.shippingAddress, order.customer),
     name: exchangeOrder.name,
     fullyPaid: order.fullyPaid,
     customerDetails: order.customer,
@@ -184,14 +180,30 @@ export function generateExchangeOrderDTO(
   };
 }
 
+export function isValidOrder(address: ShippingAddress, customer: Customer) {
+  return (
+    ((address?.address1 !== null && address?.address1 !== undefined) ||
+      address?.address2 !== null ||
+      address?.address2 !== undefined) &&
+    address?.city !== null &&
+    address?.city !== undefined &&
+    address?.country !== null &&
+    address?.country !== undefined &&
+    ((customer?.phone !== null && customer?.phone !== undefined) ||
+      (address?.phone !== null && address?.phone !== undefined))
+  );
+}
+
 export function calculateTotalPrice(order: OrdersNode): string {
-  const total = parseFloat(order.totalPriceSet.shopMoney.amount);
+  // const total = parseFloat(order.totalPriceSet.shopMoney.amount);
+  const total = parseFloat(order.totalOutstandingSet.shopMoney.amount);
   const shipping = parseFloat(order.totalShippingPriceSet.shopMoney.amount);
   return `${(total - shipping).toFixed(2)}`;
 }
 
 export function calculateReturnTotalPrice(order: OrdersNode): string {
-  const total = parseFloat(order.totalPriceSet.shopMoney.amount);
+  // const total = parseFloat(order.totalPriceSet.shopMoney.amount);
+  const total = parseFloat(order.totalOutstandingSet.shopMoney.amount);
   const shipping = parseFloat(order.totalShippingPriceSet.shopMoney.amount);
   return `-${(total - shipping).toFixed(2)}`;
 }

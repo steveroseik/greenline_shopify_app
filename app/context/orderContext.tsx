@@ -5,6 +5,7 @@ import { OrdersNode } from "~/interface/Order/orderPageInterface";
 
 interface OrderContextData {
   page: GeneratedOrdersPageProps;
+  canSelect: boolean;
   selectedOrders: Set<string>; // Store selected order IDs
 }
 
@@ -15,6 +16,7 @@ interface OrderContextProps {
 
 const initialState: OrderContextData = {
   page: undefined,
+  canSelect: false,
   selectedOrders: new Set(),
 };
 
@@ -26,7 +28,17 @@ const orderReducer = (
 ): OrderContextData => {
   switch (action.type) {
     case "SET_ORDERS":
-      return { ...state, page: action.payload };
+      console.log("Received payload", action.payload);
+      const canSelect = action.payload.orders.some(
+        (order: OrderDTO) => order.synced === false && order.valid === true,
+      );
+      console.log("ASSIGNING CAN SELECT", canSelect);
+      return {
+        ...state,
+        page: action.payload,
+        canSelect,
+        selectedOrders: new Set(),
+      };
     case "SELECT_ORDER":
       const newSelectedOrders = new Set(state.selectedOrders);
       if (action.payload.selected) {
@@ -38,7 +50,7 @@ const orderReducer = (
     case "SELECT_ALL_ORDERS":
       const allOrderIds = new Set(
         state.page.orders
-          .filter((e) => e.synced === false)
+          .filter((e) => e.synced === false && e.valid === true)
           .map((order) => order.id),
       );
       return { ...state, selectedOrders: allOrderIds };

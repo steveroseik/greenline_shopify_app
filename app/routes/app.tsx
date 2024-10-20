@@ -25,8 +25,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return json({ apiKey: process.env.SHOPIFY_API_KEY || "" });
 };
 
-const devMode = process.env.DEV_MODE === "true";
-console.log("DEVMODE", devMode);
+// const devMode = process.env.DEV_MODE === "true";
+// console.log("DEVMODE", devMode);
 
 const endpoint = false
   ? `http://localhost:3001/graphql`
