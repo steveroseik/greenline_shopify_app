@@ -424,7 +424,7 @@ export const Collections = () => {
     if (initial) {
       setInitial(false);
 
-      if (shopSession.linked && state.lastFetched) {
+      if (shopSession.fetched && state.lastFetched) {
         setLoading(false);
         setSessionLoading(false);
       } else {
