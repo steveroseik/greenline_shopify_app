@@ -439,6 +439,7 @@ export const Collections = () => {
         );
       }
     } else if (fetcher.data) {
+      setSessionLoading(false);
       if (fetcher.data.type === "session") {
         updateState({
           merchantInfo: fetcher.data?.merchant,
