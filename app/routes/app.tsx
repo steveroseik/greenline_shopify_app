@@ -13,7 +13,6 @@ import { ShopContextProvider } from "~/session/shop-session-provider";
 import ProductsProvider from "~/context/productsContext";
 import { OrderProvider } from "~/context/orderContext";
 import { ShopSessionContext } from "~/session/shop-session";
-import createApp from "@shopify/app-bridge";
 import { useEffect } from "react";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -41,18 +40,6 @@ export const graphqlClient = new GraphQLClient(endpoint, {
 
 export default function App() {
   const { apiKey } = useLoaderData<typeof loader>();
-
-  useEffect(() => {
-    const host = new URLSearchParams(window.location.search).get("host");
-
-    const config = {
-      apiKey,
-      host: host,
-      forceRedirect: true,
-    };
-
-    const appInstance = createApp(config);
-  }, []);
 
   return (
     <AppProvider isEmbeddedApp apiKey={apiKey}>
