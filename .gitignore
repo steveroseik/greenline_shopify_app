@@ -16,6 +16,7 @@ database.sqlite
 shopify.app.toml
 
 
+/webhook_logs
 
 
 /extensions/*/dist
