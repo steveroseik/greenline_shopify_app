@@ -3,7 +3,7 @@
 client_id = "b07d3deef8c6b0b1b0b50aa79aa2350b"
 name = "Greenline Merchant"
 handle = "greenline-merchant"
-application_url = "https://shop.greenlineco.site"
+application_url = "https://interviews-prison-bouquet-pants.trycloudflare.com"
 embedded = true
 
 [build]
@@ -17,7 +17,9 @@ scopes = "customer_read_customers,read_customers,read_discounts,read_draft_order
 
 [auth]
 redirect_urls = [
-  "https://shop.greenlineco.site/auth/callback"
+  "https://interviews-prison-bouquet-pants.trycloudflare.com/auth/callback",
+  "https://interviews-prison-bouquet-pants.trycloudflare.com/auth/shopify/callback",
+  "https://interviews-prison-bouquet-pants.trycloudflare.com/api/auth/callback"
 ]
 
 [webhooks]

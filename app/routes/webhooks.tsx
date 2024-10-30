@@ -7,22 +7,32 @@ import { Session } from "@shopify/shopify-api";
 import { Shopify, ShopifyHeader } from "@shopify/shopify-api";
 import { role_type } from "@prisma/client";
 import CryptoJS from "crypto-js";
+import { logWebhookPayload } from "./webhooks.log";
+import { log } from "console";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
+  // Capture raw body from request
+  const reqClone = request.clone();
+  const rawPayload = await reqClone.text();
+
   const { topic, shop, session, admin, payload } =
     await authenticate.webhook(request);
 
+  console.log("Received webhook :::!");
+
   const signature = request.headers.get("x-shopify-hmac-sha256");
 
-  const requestBodyString = JSON.stringify(request.body);
+  console.log("Signature :::!", signature);
 
   const secretKey = process.env.SHOPIFY_API_SECRET;
 
   // Generate the HMAC signature using crypto-js
   const generatedSignature = CryptoJS.HmacSHA256(
-    requestBodyString,
+    rawPayload,
     secretKey,
   ).toString(CryptoJS.enc.Base64);
+
+  console.log("Generated Signature :::!", generatedSignature);
 
   // const generatedSignature = crypto
   //   .createHmac("SHA256", secretKey)
@@ -30,15 +40,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   //   .digest("base64");
 
   if (signature !== generatedSignature) {
+    console.log("Invalid signature :::!");
     return new Response("Invalid signature", { status: 401 });
   }
 
-  console.log(request.headers.get("X-Shopify-Topic"));
-
-  if (!admin) {
-    // The admin context isn't returned if the webhook fired after a shop was uninstalled.
-    throw new Response();
-  }
+  console.log("Signature verified :::!");
 
   switch (topic) {
     case "APP_UNINSTALLED":
@@ -60,15 +66,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     case "ORDERS_CREATE":
       {
         console.log(`------- HIT ORDER CREATE HERE -------`);
-        console.log(payload);
-        const resp = await prisma.role.create({
-          data: {
-            name: "SST",
-            type: role_type.Merchant,
-            description: "TESTING",
-          },
-        });
-        console.log(resp.createdAt, "CREATED AT");
+        // logWebhookPayload("ORDERS_CREATE", payload);
         console.log(`------- HIT ENDED ORDER CREATE -------`);
       }
       break;
@@ -76,11 +74,24 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     case "PRODUCTS_UPDATE":
       {
         console.log(`------- HIT PRODUCT UPDATE HERE -------`);
-        console.log(payload);
+        // logWebhookPayload("PRODUCTS_UPDATE", payload);
         console.log(`------- HIT ENDED PRODUCT UPDATE -------`);
       }
       break;
-
+    case "PRODUCTS_CREATE":
+      {
+        console.log(`------- HIT PRODUCT UPDATE HERE -------`);
+        // logWebhookPayload("PRODUCTS_CREATE", payload);
+        console.log(`------- HIT ENDED PRODUCT UPDATE -------`);
+      }
+      break;
+    case "PRODUCTS_DELETE":
+      {
+        console.log(`------- HIT PRODUCT UPDATE HERE -------`);
+        // logWebhookPayload("PRODUCTS_DELETE", payload);
+        console.log(`------- HIT ENDED PRODUCT UPDATE -------`);
+      }
+      break;
     case "CUSTOMERS_DATA_REQUEST":
       break;
 

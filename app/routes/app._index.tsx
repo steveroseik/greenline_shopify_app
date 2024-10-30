@@ -26,8 +26,11 @@ import {
   InlineStack,
   TextField,
   Spinner,
+  Grid,
+  InlineGrid,
+  Select,
 } from "@shopify/polaris";
-import { TitleBar, useAppBridge } from "@shopify/app-bridge-react";
+import { TitleBar } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import { AdminApiContext, Session } from "@shopify/shopify-app-remix/server";
 import { ShopSession, useShopSession } from "~/session/shop-session";
@@ -37,6 +40,20 @@ import { validateEmail } from "~/support/emailValidations";
 import { FindShopResponse } from "~/interface/Shop/find-shop";
 import { LoaderResponse } from "~/interface/Shop/loader-response";
 import { SignInFromShopifyResponse } from "~/interface/Shop/signin-from-shopify";
+import {
+  CheckCircleIcon,
+  CheckIcon,
+  EditIcon,
+  PlusIcon,
+  SaveIcon,
+} from "@shopify/polaris-icons";
+import { Redirect } from "@shopify/app-bridge/actions";
+import { createApp } from "@shopify/app-bridge/client";
+import { Row } from "@shopify/polaris/build/ts/src/components/IndexTable";
+import FulfillmentSettings from "~/components/fulfilmentOptions";
+import { updateFulfillmentSettingsQuery } from "~/queries/updateFulfillmentSettings";
+import { select, update } from "@shopify/app-bridge/actions/ResourcePicker";
+import { logWebhookPayload } from "./webhooks.log";
 
 export const loader: LoaderFunction = async ({
   request,
@@ -50,6 +67,10 @@ export const loader: LoaderFunction = async ({
     findShop(shop: "${shop}"){
       name
       id
+      settings{
+        shopifyProductsSynced
+        shopifyFulfillmentType
+      }
     }
   }`;
 
@@ -90,15 +111,83 @@ export const action = async ({ request }: ActionFunctionArgs): Promise<any> => {
 
   const action = formData.get("action");
 
+  // const destination = formData.get("destination").toString();
+
   console.log("ACTIOED", action);
 
-  switch (action) {
-    case "signIn":
-      return signInActionFunction(formData, shop);
-    case "linkShop":
-      return linkShopActionFunction(shop, formData, session, admin);
-    default:
-      return null;
+  try {
+    switch (action) {
+      case "signIn":
+        return signInActionFunction(formData, shop);
+      case "linkShop":
+        return linkShopActionFunction(shop, formData, session, admin);
+      case "updateFulfillment":
+        return updateFulfillmentActionFunction(formData);
+      case "navigate": {
+        // if (destination?.length > 0) {
+        //   const redirect = Redirect.create(bridgeApp);
+        //   redirect.dispatch(Redirect.Action.APP, destination);
+        //   return true;
+        // }
+        // return false;
+      }
+
+      default:
+        return null;
+    }
+  } catch (e) {
+    console.log("FAILED ACTIONNNN GEN");
+    return {
+      success: false,
+      message: "Internal Error",
+    };
+  }
+};
+
+const updateFulfillmentActionFunction = async (formData: FormData) => {
+  const merchantId = formData.get("merchantId");
+
+  try {
+    if (merchantId == null)
+      return {
+        type: "updateFulfillment",
+        success: false,
+        message: "No Merchant Id Found!",
+      };
+
+    const selectedOption = formData.get("selectedOption");
+
+    const response = await graphqlClient.request<{
+      success: boolean;
+      message?: string;
+    }>(
+      gql`
+        ${updateFulfillmentSettingsQuery()}
+      `,
+      {
+        input: {
+          id: parseInt(merchantId.toString()),
+          shopifyFulfillmentType: selectedOption,
+        },
+      },
+    );
+
+    console.log(response, "RESPONSEX");
+
+    return {
+      type: "updateFulfillment",
+      ...response,
+    };
+  } catch (e) {
+    console.log(e);
+    console.log("FAILED updateFulfillmentSettingsQuery");
+
+    logWebhookPayload("Fulfillment Settings Updated", { data: e });
+    return {
+      type: "updateFulfillment",
+      success: false,
+      message: "Internal Error",
+    };
   }
 };
 
@@ -200,61 +289,22 @@ const signInActionFunction = async (formData: FormData, shop: String) => {
   }
 };
 
+const fulfillmentOptions = new Map<String, String>([
+  ["automatic", "Automatic Fulfillment"],
+  ["afterAssignment", "Fulfillment After Courier Assignment"],
+]);
+
 export default function Index() {
   const nav = useNavigation();
   const actionData = useActionData<typeof action>();
+
   const loaderData = useLoaderData<LoaderResponse>();
 
   const { shopSession, updateState, resetSession } = useShopSession();
 
-  let actionMessage = actionData?.message;
+  const fetcher = useFetcher<any>();
 
   const [loading, setLoading] = useState<boolean>(true);
-
-  useEffect(() => {
-    if (loading) setLoading(false);
-    console.log("DATA YABA", actionData);
-    console.log("LOADER YABA", loaderData);
-
-    // Show action message toast if available
-    const actionMessage = actionData?.message;
-    if (actionMessage) {
-      shopify.toast.show(`${actionMessage}`);
-    }
-
-    // Update shop session with loader data
-    if (loaderData) {
-      if (actionData?.merchant) loaderData.merchant = actionData.merchant;
-      if (actionData?.shop) loaderData.shop = actionData.shop;
-      console.log();
-      updateState({
-        merchantInfo: loaderData?.merchant,
-        shop: loaderData?.shop,
-        linked: loaderData?.success ?? false,
-        fetched: true,
-      });
-
-      console.log("LOADER DATA", loaderData);
-    }
-
-    // Update shop session with action data if necessary
-    if (actionData?.merchant && !shopSession.merchantInfo) {
-      updateState({
-        merchantInfo: {
-          id: actionData?.merchant!.id,
-          name: actionData?.merchant!.name,
-        },
-      });
-    }
-
-    if (actionData?.linked === true && shopSession.linked !== true) {
-      updateState({
-        linked: true,
-      });
-    }
-  }, [loaderData, actionData]);
-
-  const submit = useSubmit();
 
   const isLoading = ["loading", "submitting"].includes(nav.state);
 
@@ -266,6 +316,8 @@ export default function Index() {
 
   // const generateProduct = () => submit({}, { replace: true, method: "POST" });
 
+  const [isUpdatingSettings, setUpdatingSettings] = useState(false);
+
   const [email, setEmail] = useState("");
 
   const handleEmail = useCallback((newValue: string) => setEmail(newValue), []);
@@ -274,14 +326,103 @@ export default function Index() {
 
   const handlePass = useCallback((newValue: string) => setPass(newValue), []);
 
+  const [selected, setSelected] = useState(null);
+
+  const [isEditing, setEditing] = useState(false);
+
+  const toggleEditing = useCallback(
+    () => setEditing((editing) => !editing),
+    [],
+  );
+
+  useEffect(() => {
+    if (loading) setLoading(false);
+
+    console.log("ACTION DATA", fetcher.data);
+
+    // Show action message toast if available
+    const actionMessage = fetcher.data?.message;
+    if (actionMessage) {
+      shopify.toast.show(`${actionMessage}`);
+    }
+
+    // Update shop session with loader data
+    if (loaderData) {
+      if (fetcher.data?.merchant) loaderData.merchant = fetcher.data.merchant;
+      if (fetcher.data?.shop) loaderData.shop = fetcher.data.shop;
+
+      updateState({
+        merchantInfo: loaderData?.merchant,
+        shop: loaderData?.shop,
+        linked: loaderData?.success ?? false,
+        fetched: true,
+      });
+    }
+
+    if (fetcher.data?.type == "updateFulfillment") {
+      if (fetcher.data.updateShopifyFulfillmentSettings?.success) {
+        updateState({
+          merchantInfo: {
+            ...shopSession.merchantInfo,
+            settings: {
+              ...shopSession.merchantInfo?.settings,
+              shopifyFulfillmentType: fetcher.data.selectedOption,
+            },
+          },
+        });
+        setEditing(false);
+      }
+      setUpdatingSettings(false);
+
+      console.log("setted", isUpdatingSettings);
+    }
+
+    // Update shop session with action data if necessary
+    if (fetcher.data?.merchant && !shopSession.merchantInfo) {
+      updateState({
+        merchantInfo: {
+          id: fetcher.data?.merchant!.id,
+          name: fetcher.data?.merchant!.name,
+          settings: fetcher.data?.merchant!.settings,
+        },
+      });
+    }
+
+    if (fetcher.data?.linked === true && shopSession.linked !== true) {
+      updateState({
+        linked: true,
+      });
+    }
+
+    if (!isEditing) {
+      setSelected(shopSession.merchantInfo?.settings.shopifyFulfillmentType);
+    }
+  }, [fetcher.data, isLoading, isEditing, isUpdatingSettings]);
+
+  const handleFulfillmentUpdate = async () => {
+    if (isEditing) {
+      fetcher.submit(
+        {
+          action: "updateFulfillment",
+          merchantId: shopSession.merchantInfo?.id,
+          selectedOption: selected,
+        },
+        { method: "POST" },
+      );
+      setUpdatingSettings(true);
+    } else {
+      toggleEditing();
+    }
+  };
+
   return (
     <Page>
       <Layout.Section>
         <ui-title-bar title="Greenline Co."></ui-title-bar>
       </Layout.Section>
       <ui-title-bar title="Greenline Co."></ui-title-bar>
-      <BlockStack gap="500">
-        <Layout>
+      <Layout>
+        {!shopSession.linked && (
           <Layout.Section>
             <Card>
               <BlockStack gap="500">
@@ -301,113 +442,174 @@ export default function Index() {
               </BlockStack>
             </Card>
           </Layout.Section>
-          {loading ? (
-            <Layout.Section>
-              <Card>
-                <Spinner aria-label="Loading orders" />
-              </Card>
-            </Layout.Section>
-          ) : (
-            <>
-              {shopSession.linked !== true &&
-                shopSession.merchantInfo?.id === undefined && (
-                  <Layout.Section>
-                    <Card>
-                      <Form
-                        method="post"
-                        onSubmit={() =>
-                          submit({}, { replace: true, method: "POST" })
-                        }
-                      >
-                        <Card>
-                          <TextField
-                            inputMode="email"
-                            label="Email"
-                            name="email"
-                            value={email}
-                            onChange={handleEmail}
-                            placeholder="Ex: steveroseik@gmail.com"
-                            autoComplete="true"
-                          />
-                          <div style={{ padding: "5px" }} />
-                          <TextField
-                            inputMode="text"
-                            name="password"
-                            type="password"
-                            value={password}
-                            onChange={handlePass}
-                            label="Password"
-                            autoComplete="true"
-                          />
-                        </Card>
-                        <div style={{ padding: "10px" }} />
-                        <input type="hidden" name="action" value="signIn" />
-                        <Button variant="primary" submit={true}>
-                          Connect with App
-                        </Button>
-                      </Form>
-                    </Card>
-                  </Layout.Section>
-                )}
-              {shopSession.linked !== true &&
-                shopSession.merchantInfo?.id !== undefined &&
-                shopSession.merchantInfo?.name !== undefined && (
-                  <Layout.Section>
-                    <Card>
-                      <Text variant="headingSm" as="h3">
-                        You are a manager in {shopSession.merchantInfo.name} at
-                        Greenline. Do you want to link it?
-                      </Text>
-                      <div style={{ padding: "10px" }} />
-                      <div style={{ display: "flex", gap: "10px" }}>
-                        <Form
-                          method="POST"
-                          onSubmit={() =>
-                            submit({}, { replace: true, method: "POST" })
-                          }
-                        >
-                          <input type="hidden" name="action" value="linkShop" />
-                          <input
-                            type="hidden"
-                            name="merchantId"
-                            value={shopSession.merchantInfo?.id}
-                          />
-                          <Button variant="primary" submit={true}>
-                            Link With {shopSession.merchantInfo.name}
-                          </Button>
-                        </Form>
-                        <Form
-                          method="POST"
-                          onSubmit={(e) => {
-                            e.preventDefault(); // Prevent the default form submission
-                            resetSession(); // Call resetSession
-                          }}
-                        >
-                          <Button
-                            variant="primary"
-                            tone="critical"
-                            submit={true}
-                          >
-                            Switch Account
-                          </Button>
-                        </Form>
-                      </div>
-                    </Card>
-                  </Layout.Section>
-                )}
-              {shopSession.linked === true && (
+        )}
+        {loading ? (
+          <Layout.Section>
+            <Card>
+              <Spinner aria-label="Loading orders" />
+            </Card>
+          </Layout.Section>
+        ) : (
+          <>
+            {shopSession.linked !== true &&
+              shopSession.merchantInfo?.id === undefined && (
                 <Layout.Section>
                   <Card>
-                    <Text variant="bodyLg" as="h3">
-                      CONGRATULATIONSS YOU ARE LINKED
-                    </Text>
+                    <Card>
+                      <TextField
+                        inputMode="email"
+                        label="Email"
+                        name="email"
+                        value={email}
+                        onChange={handleEmail}
+                        placeholder="Ex: steveroseik@gmail.com"
+                        autoComplete="true"
+                      />
+                      <div style={{ padding: "5px" }} />
+                      <TextField
+                        inputMode="text"
+                        name="password"
+                        type="password"
+                        value={password}
+                        onChange={handlePass}
+                        label="Password"
+                        autoComplete="true"
+                      />
+                    </Card>
+                    <div style={{ padding: "10px" }} />
+                    <Button
+                      variant="primary"
+                      onClick={() =>
+                        fetcher.submit(
+                          {
+                            action: "signIn",
+                            email,
+                            password,
+                          },
+                          { method: "POST" },
+                        )
+                      }
+                    >
+                      Connect with App
+                    </Button>
                   </Card>
                 </Layout.Section>
               )}
-            </>
-          )}
-        </Layout>
-      </BlockStack>
+            {shopSession.linked !== true &&
+              shopSession.merchantInfo?.id !== undefined &&
+              shopSession.merchantInfo?.name !== undefined && (
+                <Layout.Section>
+                  <Card>
+                    <Text variant="headingSm" as="h3">
+                      You are a manager in {shopSession.merchantInfo.name} at
+                      Greenline. Do you want to link it?
+                    </Text>
+                    <div style={{ padding: "10px" }} />
+                    <div style={{ display: "flex", gap: "10px" }}>
+                      <Button
+                        variant="primary"
+                        onClick={() =>
+                          fetcher.submit(
+                            {
+                              action: "linkShop",
+                              merchantId: shopSession.merchantInfo?.id,
+                            },
+                            { method: "POST" },
+                          )
+                        }
+                      >
+                        Link With {shopSession.merchantInfo.name}
+                      </Button>
+                      <Form
+                        method="POST"
+                        onSubmit={(e) => {
+                          e.preventDefault(); // Prevent the default form submission
+                          resetSession(); // Call resetSession
+                        }}
+                      >
+                        <Button variant="primary" tone="critical" submit={true}>
+                          Switch Account
+                        </Button>
+                      </Form>
+                    </div>
+                  </Card>
+                </Layout.Section>
+              )}
+            {shopSession.linked === true && (
+              <Layout.Section>
+                <InlineGrid columns={2}>
+                  <div style={{ height: "auto", width: "100%" }}>
+                    <Layout.Section>
+                      <Card>
+                        <Text as="h2" variant="headingMd">
+                          Welcome Back, {shopSession.merchantInfo?.name}!
+                        </Text>
+                      </Card>
+                    </Layout.Section>
+                  </div>
+                  <Layout.Section>
+                    <Card>
+                      <InlineGrid columns="1fr auto">
+                        <Text as="h2" variant="headingSm">
+                          Settings
+                        </Text>
+
+                        <InlineStack>
+                          {!isUpdatingSettings ? (
+                            <>
+                              {isEditing && (
+                                <>
+                                  <Button
+                                    tone="critical"
+                                    onClick={() => {
+                                      toggleEditing();
+                                    }}
+                                  >
+                                    Cancel
+                                  </Button>
+                                  <div style={{ padding: "5px" }}></div>
+                                </>
+                              )}
+                              <Button
+                                onClick={() => handleFulfillmentUpdate()}
+                                accessibilityLabel="Add variant"
+                                icon={isEditing ? CheckIcon : EditIcon}
+                              >
+                                {isEditing ? "Done" : "Edit"}
+                              </Button>
+                            </>
+                          ) : (
+                            <Spinner size="small" />
+                          )}
+                        </InlineStack>
+                      </InlineGrid>
+                      <Text as="h2" variant="headingSm">
+                        Order Fulfillment
+                      </Text>
+                      <div style={{ padding: "5px" }}></div>
+                      <>
+                        {isEditing ? (
+                          <FulfillmentSettings
+                            defaultSelection={
+                              shopSession.merchantInfo?.settings
+                                .shopifyFulfillmentType
+                            }
+                            onSelectionChange={(value) => {
+                              setSelected(value);
+                            }}
+                          />
+                        ) : (
+                          <Text as="p">{selected ?? "No Shopify Update"}</Text>
+                        )}
+                      </>
+                    </Card>
+                  </Layout.Section>
+                </InlineGrid>
+              </Layout.Section>
+            )}
+          </>
+        )}
+      </Layout>
     </Page>
   );
 }

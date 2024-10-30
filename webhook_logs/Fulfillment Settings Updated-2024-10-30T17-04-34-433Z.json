@@ -1,0 +1,44 @@
+{
+  "data": {
+    "response": {
+      "errors": [
+        {
+          "message": "Variable \"$input\" got invalid value \"\" at \"input.shopifyFulfillmentType\"; Value \"\" does not exist in \"shopifyFulfillmentType\" enum.",
+          "locations": [
+            {
+              "line": 3,
+              "column": 44
+            }
+          ],
+          "extensions": {
+            "code": "BAD_USER_INPUT",
+            "stacktrace": [
+              "GraphQLError: Value \"\" does not exist in \"shopifyFulfillmentType\" enum.",
+              "    at GraphQLEnumType.parseValue (/Users/roseik/js-projects/greenline_server/node_modules/graphql/type/definition.js:1126:13)",
+              "    at coerceInputValueImpl (/Users/roseik/js-projects/greenline_server/node_modules/graphql/utilities/coerceInputValue.js:151:26)",
+              "    at coerceInputValueImpl (/Users/roseik/js-projects/greenline_server/node_modules/graphql/utilities/coerceInputValue.js:117:34)",
+              "    at coerceInputValueImpl (/Users/roseik/js-projects/greenline_server/node_modules/graphql/utilities/coerceInputValue.js:49:14)",
+              "    at coerceInputValue (/Users/roseik/js-projects/greenline_server/node_modules/graphql/utilities/coerceInputValue.js:32:10)",
+              "    at coerceVariableValues (/Users/roseik/js-projects/greenline_server/node_modules/graphql/execution/values.js:132:69)",
+              "    at getVariableValues (/Users/roseik/js-projects/greenline_server/node_modules/graphql/execution/values.js:45:21)",
+              "    at buildExecutionContext (/Users/roseik/js-projects/greenline_server/node_modules/graphql/execution/execute.js:280:63)",
+              "    at execute (/Users/roseik/js-projects/greenline_server/node_modules/graphql/execution/execute.js:116:22)",
+              "    at executeIncrementally (/Users/roseik/js-projects/greenline_server/node_modules/@apollo/server/src/incrementalDeliveryPolyfill.ts:114:17)"
+            ]
+          }
+        }
+      ],
+      "status": 200,
+      "headers": {}
+    },
+    "request": {
+      "query": "\n        \nmutation updateMerchantFulfillmentSettings($input: UpdateShopifyFulfillmentInput!){\n  updateShopifyFulfillmentSettings(input: $input)\n}\n      ",
+      "variables": {
+        "input": {
+          "id": 1,
+          "shopifyFulfillmentType": ""
+        }
+      }
+    }
+  }
+}

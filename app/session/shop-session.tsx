@@ -1,10 +1,12 @@
 import React, { useContext } from "react";
+import { MerchantSettings } from "~/interface/Shop/find-shop";
 
 export interface ShopSession {
   shop?: string;
   merchantInfo?: {
     id: number;
     name: string;
+    settings: MerchantSettings;
   };
   linked?: boolean;
   fetched?: boolean;
