@@ -1,6 +1,7 @@
 import { MerchantSettings } from "./find-shop";
 
 export interface LoaderResponse {
+  type: String;
   success: Boolean;
   shop: String;
   merchant?: {

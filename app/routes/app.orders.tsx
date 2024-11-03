@@ -388,46 +388,68 @@ const OrdersView = () => {
           </Card>
         </Layout.Section>
       ) : shopSession.linked === true ? (
-        <Layout.Section>
-          <Card>
-            <div>
-              <InlineStack>
-                <Button onClick={handleSelectAll} disabled={!state.canSelect}>
-                  Select All
-                </Button>
-                <div style={{ padding: "5px" }}></div>
-                <Button onClick={handleDeselectAll} disabled={!state.canSelect}>
-                  Deselect All
-                </Button>
-                <div style={{ marginLeft: "auto" }}>
-                  <Button variant="primary" onClick={handleSyncOrders}>
-                    Sync Orders
+        !(
+          shopSession.merchantInfo?.settings?.shopifyProductsSynced ?? false
+        ) ? (
+          <Layout.Section>
+            <Card>
+              <Banner title="Desynced Products" tone="warning">
+                <h3>
+                  It looks like your shop's products are not currently synced
+                  with Greenline's product inventory. To ensure seamless order
+                  processing, please navigate to the "Products" tab, then
+                  refresh and sync your product changes. This will align your
+                  shop’s inventory with Greenline, enabling accurate and
+                  up-to-date order synchronization.
+                </h3>
+              </Banner>
+            </Card>
+          </Layout.Section>
+        ) : (
+          <Layout.Section>
+            <Card>
+              <div>
+                <InlineStack>
+                  <Button onClick={handleSelectAll} disabled={!state.canSelect}>
+                    Select All
                   </Button>
-                </div>
-              </InlineStack>
-              <div style={{ padding: "5px" }}></div>
-              {state.page && state.page.orders.length > 0 ? (
-                <div>
-                  {state.page.orders.map((order) => (
-                    <OrderCard
-                      key={order.id}
-                      order={order}
-                      onSelect={handleOrderSelect}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <Text as="h2">No orders found</Text>
-              )}
-              <Pagination
-                hasPrevious={pageInfo.hasPreviousPage}
-                onPrevious={handlePreviousPage}
-                hasNext={pageInfo.hasNextPage}
-                onNext={handleNextPage}
-              />
-            </div>
-          </Card>
-        </Layout.Section>
+                  <div style={{ padding: "5px" }}></div>
+                  <Button
+                    onClick={handleDeselectAll}
+                    disabled={!state.canSelect}
+                  >
+                    Deselect All
+                  </Button>
+                  <div style={{ marginLeft: "auto" }}>
+                    <Button variant="primary" onClick={handleSyncOrders}>
+                      Sync Orders
+                    </Button>
+                  </div>
+                </InlineStack>
+                <div style={{ padding: "5px" }}></div>
+                {state.page && state.page.orders.length > 0 ? (
+                  <div>
+                    {state.page.orders.map((order) => (
+                      <OrderCard
+                        key={order.id}
+                        order={order}
+                        onSelect={handleOrderSelect}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <Text as="h2">No orders found</Text>
+                )}
+                <Pagination
+                  hasPrevious={pageInfo.hasPreviousPage}
+                  onPrevious={handlePreviousPage}
+                  hasNext={pageInfo.hasNextPage}
+                  onNext={handleNextPage}
+                />
+              </div>
+            </Card>
+          </Layout.Section>
+        )
       ) : (
         <Banner
           title="Merchant not linked"

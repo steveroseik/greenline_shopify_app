@@ -29,6 +29,7 @@ import {
   Grid,
   InlineGrid,
   Select,
+  Badge,
 } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
@@ -51,17 +52,14 @@ import { Redirect } from "@shopify/app-bridge/actions";
 import { createApp } from "@shopify/app-bridge/client";
 import { Row } from "@shopify/polaris/build/ts/src/components/IndexTable";
 import FulfillmentSettings from "~/components/fulfilmentOptions";
-import { updateFulfillmentSettingsQuery } from "~/queries/updateFulfillmentSettings";
+import { updateFulfillmentSettingsMutation } from "~/queries/updateFulfillmentSettings";
 import { select, update } from "@shopify/app-bridge/actions/ResourcePicker";
 import { logWebhookPayload } from "./webhooks.log";
+import { Tone } from "@shopify/polaris/build/ts/src/components/Badge";
 
-export const loader: LoaderFunction = async ({
-  request,
-}: LoaderFunctionArgs): Promise<LoaderResponse> => {
-  const { session, admin } = await authenticate.admin(request);
-
-  const { shop, accessToken } = session;
-
+export const loadMerchantCredentials = async (
+  shop: string,
+): Promise<LoaderResponse> => {
   const query = `query {
 
     findShop(shop: "${shop}"){
@@ -89,12 +87,14 @@ export const loader: LoaderFunction = async ({
 
   if (response.findShop !== null) {
     return {
+      type: "merchantData",
       success: true,
       shop,
       merchant: response.findShop,
     };
   } else {
     return {
+      type: "merchantData",
       success: false,
       shop,
       message: "Failed",
@@ -117,6 +117,9 @@ export const action = async ({ request }: ActionFunctionArgs): Promise<any> => {
 
   try {
     switch (action) {
+      case "initial":
+      case "refresh":
+        return loadMerchantCredentials(shop);
       case "signIn":
         return signInActionFunction(formData, shop);
       case "linkShop":
@@ -155,14 +158,23 @@ const updateFulfillmentActionFunction = async (formData: FormData) => {
         message: "No Merchant Id Found!",
       };
 
-    const selectedOption = formData.get("selectedOption");
+    let selectedOption = formData.get("selectedOption")?.toString();
+
+    if (selectedOption.length == 0 || selectedOption == "null") {
+      console.log("lenght", selectedOption?.length);
+      selectedOption = null;
+    }
+
+    console.log("selectedOption", selectedOption);
+    console.log("lenght", selectedOption?.length);
+    console.log("type", typeof selectedOption);
 
     const response = await graphqlClient.request<{
       success: boolean;
       message?: string;
     }>(
       gql`
-        ${updateFulfillmentSettingsQuery()}
+        ${updateFulfillmentSettingsMutation()}
       `,
       {
         input: {
@@ -222,6 +234,7 @@ const linkShopActionFunction = async (
 
   return {
     ...response,
+    type: "linkShop",
     linked: response.success,
   };
 };
@@ -271,6 +284,7 @@ const signInActionFunction = async (formData: FormData, shop: String) => {
 
     if (response.signInFromShopify.success) {
       return {
+        type: "signIn",
         success: true,
         merchant: response.signInFromShopify.merchantDetails,
       };
@@ -289,20 +303,15 @@ const signInActionFunction = async (formData: FormData, shop: String) => {
   }
 };
 
-const fulfillmentOptions = new Map<String, String>([
-  ["automatic", "Automatic Fulfillment"],
-  ["afterAssignment", "Fulfillment After Courier Assignment"],
-]);
-
 export default function Index() {
   const nav = useNavigation();
   const actionData = useActionData<typeof action>();
 
-  const loaderData = useLoaderData<LoaderResponse>();
-
   const { shopSession, updateState, resetSession } = useShopSession();
 
   const fetcher = useFetcher<any>();
+
+  const [initial, setInitial] = useState(true);
 
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -336,7 +345,12 @@ export default function Index() {
   );
 
   useEffect(() => {
-    if (loading) setLoading(false);
+    if (initial) {
+      fetcher.submit({ action: "initial" }, { method: "POST" });
+      setInitial(false);
+    } else {
+      if (loading) setLoading(false);
+    }
 
     console.log("ACTION DATA", fetcher.data);
 
@@ -347,20 +361,40 @@ export default function Index() {
     }
 
     // Update shop session with loader data
-    if (loaderData) {
-      if (fetcher.data?.merchant) loaderData.merchant = fetcher.data.merchant;
-      if (fetcher.data?.shop) loaderData.shop = fetcher.data.shop;
-
+    if (fetcher.data?.type == "merchantData") {
       updateState({
-        merchantInfo: loaderData?.merchant,
-        shop: loaderData?.shop,
-        linked: loaderData?.success ?? false,
+        merchantInfo: fetcher.data?.merchant,
+        shop: fetcher.data?.shop,
+        linked: fetcher.data?.success ?? false,
         fetched: true,
       });
+      setLoading(false);
+    }
+
+    if (fetcher.data?.type == "linkShop") {
+      if (fetcher.data?.linkShopToMerchant?.success) {
+        updateState({
+          linked: true,
+        });
+        fetcher.submit({ action: "refresh" }, { method: "POST" });
+        console.log("REFRESHED");
+      }
+    }
+
+    if (fetcher.data?.type == "signIn") {
+      if (fetcher.data.success) {
+        updateState({
+          merchantInfo: fetcher.data?.merchant,
+          linked:
+            fetcher.data?.merchant?.shopifyShop !== null &&
+            fetcher.data?.merchant?.shopifyShop !== undefined,
+        });
+        fetcher.submit({ action: "refresh" }, { method: "POST" });
+      }
     }
 
     if (fetcher.data?.type == "updateFulfillment") {
-      if (fetcher.data.updateShopifyFulfillmentSettings?.success) {
+      if (fetcher.data.updateShopifyFulfillmentSettings.success) {
         updateState({
           merchantInfo: {
             ...shopSession.merchantInfo,
@@ -371,22 +405,24 @@ export default function Index() {
           },
         });
         setEditing(false);
+
+        fetcher.submit({ action: "refresh" }, { method: "POST" });
       }
       setUpdatingSettings(false);
 
       console.log("setted", isUpdatingSettings);
     }
 
-    // Update shop session with action data if necessary
-    if (fetcher.data?.merchant && !shopSession.merchantInfo) {
-      updateState({
-        merchantInfo: {
-          id: fetcher.data?.merchant!.id,
-          name: fetcher.data?.merchant!.name,
-          settings: fetcher.data?.merchant!.settings,
-        },
-      });
-    }
+    // // Update shop session with action data if necessary
+    // if (fetcher.data?.merchant && !shopSession.merchantInfo) {
+    //   updateState({
+    //     merchantInfo: {
+    //       id: fetcher.data?.merchant!.id,
+    //       name: fetcher.data?.merchant!.name,
+    //       settings: fetcher.data?.merchant!.settings,
+    //     },
+    //   });
+    // }
 
     if (fetcher.data?.linked === true && shopSession.linked !== true) {
       updateState({
@@ -397,7 +433,7 @@ export default function Index() {
     if (!isEditing) {
       setSelected(shopSession.merchantInfo?.settings.shopifyFulfillmentType);
     }
-  }, [fetcher.data, isLoading, isEditing, isUpdatingSettings]);
+  }, [fetcher.data]);
 
   const handleFulfillmentUpdate = async () => {
     if (isEditing) {
@@ -508,15 +544,16 @@ export default function Index() {
                     <div style={{ display: "flex", gap: "10px" }}>
                       <Button
                         variant="primary"
-                        onClick={() =>
+                        onClick={() => {
+                          setLoading(true);
                           fetcher.submit(
                             {
                               action: "linkShop",
                               merchantId: shopSession.merchantInfo?.id,
                             },
                             { method: "POST" },
-                          )
-                        }
+                          );
+                        }}
                       >
                         Link With {shopSession.merchantInfo.name}
                       </Button>
@@ -599,7 +636,12 @@ export default function Index() {
                             }}
                           />
                         ) : (
-                          <Text as="p">{selected ?? "No Shopify Update"}</Text>
+                          <FulfillmentSelectedComponent
+                            label={
+                              shopSession.merchantInfo?.settings
+                                .shopifyFulfillmentType
+                            }
+                          />
                         )}
                       </>
                     </Card>
@@ -612,4 +654,38 @@ export default function Index() {
       </Layout>
     </Page>
   );
+}
+
+type FulfillmentSelectedProps = {
+  label?: string;
+};
+
+const FulfillmentSelectedComponent: React.FC<FulfillmentSelectedProps> = ({
+  label,
+}) => {
+  const title = fulfillmentOptionName(label);
+
+  return <Badge tone={toneOption(label)}>{title}</Badge>;
+};
+
+function fulfillmentOptionName(option: string): string {
+  switch (option) {
+    case "automatic":
+      return "Automatic Fulfillment";
+    case "afterAssignment":
+      return "Fulfillment After Courier Assignment";
+    default:
+      return "No Shopify Updates";
+  }
+}
+
+function toneOption(option: string): Tone {
+  switch (option) {
+    case "automatic":
+      return "success";
+    case "afterAssignment":
+      return "attention";
+    default:
+      return "critical";
+  }
 }

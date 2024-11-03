@@ -49,6 +49,8 @@ import { FindShopResponse } from "~/interface/Shop/find-shop";
 import { RefreshIcon } from "@shopify/polaris-icons";
 import { sleep } from "~/sleep-func";
 import { SyncShopifyItemsResponse } from "~/interface/Product/sync-shopify-items.response";
+import { logWebhookPayload } from "./webhooks.log";
+import { updateProductsSyncMutation } from "~/queries/updateProductsSync";
 
 export interface ProductsResponse extends productContextData {
   data: Edge[];
@@ -134,6 +136,10 @@ async function fetchSession(shop: string) {
     findShop(shop: "${shop}"){
       name
       id
+      settings{
+        shopifyFulfillmentType
+        shopifyProductsSynced
+      }
     }
   }`;
 
@@ -178,11 +184,18 @@ export const action = async ({ request }: ActionFunctionArgs): Promise<any> => {
 
     const lastFetched = body.get("lastFetched");
 
+    const merchantId = body.get("merchantId")?.toString();
+
+    const productsSynced = body.get("productsSynced");
+
     const initial = body.get("initial");
 
     const rawSession = body.get("session");
 
     const action = body.get("action");
+
+    console.log("action", action);
+    console.log("sxv ", productsSynced);
 
     if (action === "initial") {
       const shopSession = JSON.parse(rawSession as string) as ShopSession;
@@ -192,12 +205,22 @@ export const action = async ({ request }: ActionFunctionArgs): Promise<any> => {
         shopSession.linked &&
         (!lastFetched || lastFetched === "undefined" || lastFetched === "null")
       ) {
-        return await analyse(accessToken, shop);
+        return await analyse(
+          accessToken,
+          shop,
+          shopSession.merchantInfo.id,
+          shopSession.merchantInfo.settings.shopifyProductsSynced,
+        );
       } else {
         return json({ success: false, message: "Session not linked" });
       }
     } else if (action === "fetchProducts") {
-      return await analyse(accessToken, shop);
+      return await analyse(
+        accessToken,
+        shop,
+        parseInt(merchantId),
+        productsSynced == "true" ? true : false,
+      );
     } else if (action === "sync") {
       console.log("SYNCING PORTION, ", state.lastSyncedIndex);
       return await syncPortion(state.data, shop, state.lastSyncedIndex);
@@ -247,6 +270,7 @@ async function sync(
     };
   } catch (e) {
     console.log(e);
+    logWebhookPayload("SYNC ERROR", e);
     return { type: "sync", success: false, message: e };
   }
 }
@@ -317,6 +341,8 @@ async function syncPortion(
     };
   } catch (e) {
     console.log(e);
+    logWebhookPayload("SYNC ERROR", e);
+    console.log("SYNC ERROR");
     return {
       type: "sync",
       success: false,
@@ -327,7 +353,12 @@ async function syncPortion(
   }
 }
 
-async function analyse(accessToken: string, shop: string) {
+async function analyse(
+  accessToken: string,
+  shop: string,
+  merchantId: number,
+  productsSynced: boolean,
+) {
   try {
     let nextPageCursor: string = undefined;
     let query = setQuery(nextPageCursor);
@@ -378,8 +409,43 @@ async function analyse(accessToken: string, shop: string) {
       invalidVariants,
     } = await analyseProducts(productEdges);
 
+    if (
+      itemsToAdd.length == 0 &&
+      itemsToUpdate.length == 0 &&
+      itemsToRemove.length == 0 &&
+      variantsToAdd.length == 0 &&
+      variantsToUpdate.length == 0 &&
+      variantsToRemove.length == 0 &&
+      invalidVariants.length == 0
+    ) {
+      if (!productsSynced) {
+        const response = await graphqlClient.request<{
+          updateShopifyProductsSync: { success: boolean; message: string };
+        }>(updateProductsSyncMutation(merchantId, true));
+
+        console.log("After True updating sync", response);
+
+        if (response.updateShopifyProductsSync.success) {
+          productsSynced = true;
+        }
+      }
+    } else {
+      if (productsSynced) {
+        const response = await graphqlClient.request<{
+          updateShopifyProductsSync: { success: boolean; message: string };
+        }>(updateProductsSyncMutation(merchantId, false));
+
+        console.log("After False updating sync", response);
+
+        if (response.updateShopifyProductsSync.success) {
+          productsSynced = false;
+        }
+      }
+    }
+
     return {
       type: "analysis",
+      productsSynced,
       data: productEdges,
       itemsToAdd,
       itemsToUpdate,
@@ -454,6 +520,9 @@ export const Collections = () => {
           fetcher.submit(
             {
               action: "fetchProducts",
+              merchantId: fetcher.data?.merchant.id,
+              productsSynced:
+                fetcher.data?.merchant.settings?.shopifyProductsSynced,
             },
             { method: "post" },
           );
@@ -466,6 +535,17 @@ export const Collections = () => {
           "Analysis",
           fetcher.data.data.map((e) => e.node.title),
         );
+
+        updateState({
+          merchantInfo: {
+            ...shopSession.merchantInfo,
+            settings: {
+              ...shopSession.merchantInfo.settings,
+              shopifyProductsSynced: fetcher.data.productsSynced,
+            },
+          },
+        });
+
         dispatch({
           type: "OVERWRITE_ALL",
           payload: fetcher.data,
@@ -509,6 +589,9 @@ export const Collections = () => {
             fetcher.submit(
               {
                 action: "fetchProducts",
+                merchantId: shopSession.merchantInfo.id,
+                productsSynced:
+                  shopSession.merchantInfo.settings.shopifyProductsSynced,
               },
               { method: "POST" },
             );
@@ -580,6 +663,10 @@ export const Collections = () => {
                       fetcher.submit(
                         {
                           action: "fetchProducts",
+                          merchantId: shopSession.merchantInfo.id,
+                          productsSynced:
+                            shopSession.merchantInfo.settings
+                              .shopifyProductsSynced,
                         },
                         { method: "POST" },
                       );
@@ -594,7 +681,21 @@ export const Collections = () => {
               </div>
             </>
           )}
-
+          {!loading &&
+            (shopSession.merchantInfo?.settings?.shopifyProductsSynced ??
+              false) && (
+              <Layout.Section>
+                <Banner
+                  title="Products Synchronization Successful"
+                  tone="success"
+                >
+                  <h3>
+                    All products have been synchronized successfully, you can
+                    now process orders.
+                  </h3>
+                </Banner>
+              </Layout.Section>
+            )}
           <Layout.Section>
             <Card>
               <div>
@@ -697,6 +798,7 @@ export const Collections = () => {
               )}
             </Card>
           </Layout.Section>
+
           <Form method="post">
             <input type="hidden" name="state" value={JSON.stringify(state)} />
             <Modal

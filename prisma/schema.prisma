@@ -12,7 +12,6 @@ model shopify_session {
   shop          String    @db.VarChar(255)
   state         String    @db.VarChar(255)
   isOnline      Boolean   @default(dbgenerated("b'0'")) @db.Bit(1)
-  scope         String?   @db.VarChar(255)
   expires       DateTime? @db.Timestamp(3)
   accessToken   String    @db.VarChar(255)
   userId        String?   @db.VarChar(255)
@@ -23,6 +22,7 @@ model shopify_session {
   locale        String?   @db.VarChar(255)
   collaborator  Boolean   @default(dbgenerated("b'0'")) @db.Bit(1)
   emailVerified Boolean   @default(dbgenerated("b'0'")) @db.Bit(1)
+  scope         String?   @db.VarChar(500)
 }
 
 model ballot {
@@ -368,6 +368,7 @@ model order {
   lastModified       DateTime          @default(now()) @db.Timestamp(3)
   shopifyName        String?           @db.VarChar(255)
   otherId            String?           @db.VarChar(255)
+  initialDate        DateTime          @default(now()) @db.Timestamp(3)
   merchant           merchant          @relation(fields: [merchantId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_293ad75db4c3b2aa62996c75ad1")
   customer_address   customer_address  @relation(fields: [addressId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_73f9a47e41912876446d047d015")
   merchant_customer  merchant_customer @relation(fields: [merchantCustomerId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_ca2026ba7507aa663d5a1280af2")
@@ -681,6 +682,7 @@ model order_history {
   description  String?              @db.VarChar(255)
   createdAt    DateTime             @default(now()) @db.Timestamp(3)
   lastModified DateTime             @default(now()) @db.Timestamp(3)
+  postponeDate DateTime?            @db.Timestamp(0)
   order        order                @relation(fields: [orderId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_6a3011886bb22ddce9cfbc43fea")
   user         user                 @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_83184fc00298c184543d90e24e3")
 
@@ -1087,13 +1089,6 @@ enum expense_type {
   Miscellaneous
 }
 
-enum merchant_setting_shopifyFulfillmentType {
-  Automatic
-  After_Delivery_Attempt @map("After Delivery Attempt")
-
-  @@map("merchant-setting_shopifyFulfillmentType")
-}
-
 enum order_log_status {
   Idle
   Hand_Picked                @map("Hand Picked")
@@ -1194,4 +1189,11 @@ enum return_package_status {
   Restocked
 
   @@map("return-package_status")
+}
+
+enum merchant_setting_shopifyFulfillmentType {
+  Automatic
+  After_Assignment @map("After Assignment")
+
+  @@map("merchant-setting_shopifyFulfillmentType")
 }

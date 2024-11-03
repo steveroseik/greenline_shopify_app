@@ -150,7 +150,7 @@ function validateAndSyncProduct(
         0,
         Math.min(700, edge.node.description.length),
       ) &&
-    dbItem.name === edge.node.title
+    dbItem.name === (edge.node.title == "Default Title" ? "" : edge.node.title)
   ) {
     goodItems.push(edge.node); // Product is up-to-date
   } else {
