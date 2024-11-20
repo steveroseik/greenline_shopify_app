@@ -430,7 +430,7 @@ export default function Index() {
       });
     }
 
-    if (!isEditing) {
+    if (!isEditing && shopSession.linked) {
       setSelected(shopSession.merchantInfo?.settings.shopifyFulfillmentType);
     }
   }, [fetcher.data]);

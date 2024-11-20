@@ -392,18 +392,16 @@ const OrdersView = () => {
           shopSession.merchantInfo?.settings?.shopifyProductsSynced ?? false
         ) ? (
           <Layout.Section>
-            <Card>
-              <Banner title="Desynced Products" tone="warning">
-                <h3>
-                  It looks like your shop's products are not currently synced
-                  with Greenline's product inventory. To ensure seamless order
-                  processing, please navigate to the "Products" tab, then
-                  refresh and sync your product changes. This will align your
-                  shop’s inventory with Greenline, enabling accurate and
-                  up-to-date order synchronization.
-                </h3>
-              </Banner>
-            </Card>
+            <Banner title="Desynced Products" tone="warning">
+              <h3>
+                It looks like your shop's products are not currently synced with
+                Greenline's product inventory. To ensure seamless order
+                processing, please navigate to the "Products" tab, then refresh
+                and sync your product changes. This will align your shop’s
+                inventory with Greenline, enabling accurate and up-to-date order
+                synchronization.
+              </h3>
+            </Banner>
           </Layout.Section>
         ) : (
           <Layout.Section>
