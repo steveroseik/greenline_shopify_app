@@ -26,10 +26,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return json({ apiKey: process.env.SHOPIFY_API_KEY || "" });
 };
 
-// const devMode = process.env.DEV_MODE === "true";
-// console.log("DEVMODE", devMode);
+let devMode: boolean = true;
+try {
+  devMode = process.env.REACT_APP_DEV_MODE === "true";
+  console.log("DEVMODE", devMode);
+} catch (e) {
+  console.log(e);
+}
 
-const endpoint = false
+const endpoint = devMode
   ? `http://localhost:3001/graphql`
   : "https://greenlineco.site/graphql";
 export const graphqlClient = new GraphQLClient(endpoint, {

@@ -113,6 +113,10 @@ async function fetchSession(shop: string) {
     findShop(shop: "${shop}"){
       name
       id
+      settings{
+        shopifyProductsSynced
+        shopifyFulfillmentType
+      }
     }
   }`;
 
@@ -568,6 +572,7 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onSelect }) => {
                 </div>
               </InlineStack>
             )}
+            <Text as="p">{order.totalPrice}</Text>
           </Layout.Section>
         </Layout>
       </Card>

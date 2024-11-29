@@ -196,16 +196,20 @@ export function isValidOrder(address: ShippingAddress, customer: Customer) {
 
 export function calculateTotalPrice(order: OrdersNode): string {
   // const total = parseFloat(order.totalPriceSet.shopMoney.amount);
-  const total = parseFloat(order.totalOutstandingSet.shopMoney.amount);
-  const shipping = parseFloat(order.totalShippingPriceSet.shopMoney.amount);
-  return `${(total - shipping).toFixed(2)}`;
+  if (order.fullyPaid) {
+    return parseFloat(order.totalPriceSet.shopMoney.amount).toFixed(2);
+  } else {
+    const total = parseFloat(order.totalOutstandingSet.shopMoney.amount);
+    const shipping = parseFloat(order.totalShippingPriceSet.shopMoney.amount);
+    return (total - shipping).toFixed(2);
+  }
 }
 
 export function calculateReturnTotalPrice(order: OrdersNode): string {
   // const total = parseFloat(order.totalPriceSet.shopMoney.amount);
   const total = parseFloat(order.totalOutstandingSet.shopMoney.amount);
   const shipping = parseFloat(order.totalShippingPriceSet.shopMoney.amount);
-  return `-${(total - shipping).toFixed(2)}`;
+  return `${(total + shipping).toFixed(2)}`;
 }
 
 export function calculateExchangeTotalPrice(
