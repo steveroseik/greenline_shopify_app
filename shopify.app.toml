@@ -3,7 +3,7 @@
 client_id = "b07d3deef8c6b0b1b0b50aa79aa2350b"
 name = "Greenline Merchant"
 handle = "greenline-merchant"
-application_url = "https://injury-maximize-romance-explain.trycloudflare.com"
+application_url = "https://shop.greenlineco.site"
 embedded = true
 
 [build]
@@ -17,9 +17,9 @@ scopes = "customer_read_customers,read_assigned_fulfillment_orders,read_customer
 
 [auth]
 redirect_urls = [
-  "https://injury-maximize-romance-explain.trycloudflare.com/auth/callback",
-  "https://injury-maximize-romance-explain.trycloudflare.com/auth/shopify/callback",
-  "https://injury-maximize-romance-explain.trycloudflare.com/api/auth/callback"
+  "https://shop.greenlineco.site/auth/callback",
+  "https://shop.greenlineco.site/auth/shopify/callback",
+  "https://shop.greenlineco.site/api/auth/callback"
 ]
 
 [webhooks]
