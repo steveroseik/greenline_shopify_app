@@ -8,6 +8,7 @@ import {
 export interface OrderDTO {
   id: string;
   synced: boolean;
+  originalId?: number;
   valid: boolean;
   name: string;
   customerDetails: Customer;
@@ -20,7 +21,7 @@ export interface OrderDTO {
   orderItems?: OrderItemDto[];
   childOrder?: OrderDTO;
   previousOrderId?: string;
-  orderType: "normal" | "return" | "exchange";
+  orderType: "delivery" | "return" | "exchange";
 }
 
 export interface OrderItemDto {

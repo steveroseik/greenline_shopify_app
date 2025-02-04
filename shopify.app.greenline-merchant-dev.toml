@@ -1,12 +1,14 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
-client_id = "b07d3deef8c6b0b1b0b50aa79aa2350b"
-name = "Greenline Merchant"
-handle = "greenline-merchant"
-application_url = "https://shop.greenlineco.site/"
+client_id = "fb41a702c3e4d75b978740cd0913e96a"
+name = "greenline-merchant-dev"
+handle = "greenline-merchant-dev"
+application_url = "https://handbags-pee-accessed-promised.trycloudflare.com"
 embedded = true
 
 [build]
+automatically_update_urls_on_dev = true
+dev_store_url = "quickstart-9393e1e2.myshopify.com"
 include_config_on_deploy = true
 
 [access_scopes]
@@ -15,18 +17,13 @@ scopes = "customer_read_customers,read_assigned_fulfillment_orders,read_customer
 
 [auth]
 redirect_urls = [
-  "https://shop.greenlineco.site/auth/callback",
-  "https://shop.greenlineco.site/auth/shopify/callback",
-  "https://shop.greenlineco.site/api/auth/callback"
+  "https://handbags-pee-accessed-promised.trycloudflare.com/auth/callback",
+  "https://handbags-pee-accessed-promised.trycloudflare.com/auth/shopify/callback",
+  "https://handbags-pee-accessed-promised.trycloudflare.com/api/auth/callback"
 ]
 
 [webhooks]
-api_version = "2024-10"
-
-  [[webhooks.subscriptions]]
-  topics = [ "app/uninstalled" ]
-  uri = "https://studied-apartment-hence-twenty.trycloudflare.com/webhooks"
-  compliance_topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
+api_version = "2025-01"
 
 [pos]
 embedded = false

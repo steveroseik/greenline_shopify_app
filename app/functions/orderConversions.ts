@@ -68,6 +68,7 @@ export async function analyzeAndGenerateOrders(
       const foundOrder = generatedOrders.find((o) => o.id === order.otherId);
       if (foundOrder) {
         foundOrder.synced = true;
+        foundOrder.originalId = order.id;
       }
     });
   }
@@ -97,7 +98,7 @@ export function generateNormalOrderDTO(order: OrdersNode): OrderDTO {
     totalPrice: totalPrice,
     currencyCode: order.currencyCode,
     orderItems: orderItems,
-    orderType: "normal",
+    orderType: "delivery",
   };
 }
 

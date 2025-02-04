@@ -1,6 +1,6 @@
 export const getOrdersQuery = (before?: string, after?: string) => `
   query getOrders{
-    orders(${before ? "last" : "first"}: 2, sortKey: CREATED_AT, reverse: true, ${after ? `after: "${after}"` : ""} ${before ? `before: "${before}"` : ""}) {
+    orders(${before ? "last" : "first"}: 10, sortKey: CREATED_AT, reverse: true, ${after ? `after: "${after}"` : ""} ${before ? `before: "${before}"` : ""}) {
      nodes{
         id
         name,

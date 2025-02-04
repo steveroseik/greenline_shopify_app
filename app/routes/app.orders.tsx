@@ -39,6 +39,7 @@ import { ShopSession, useShopSession } from "~/session/shop-session";
 import { AdminApiContext } from "@shopify/shopify-app-remix/server";
 import { gql } from "graphql-request";
 import { FindShopResponse } from "~/interface/Shop/find-shop";
+import { ShareIcon } from "@shopify/polaris-icons";
 
 // export const loader: LoaderFunction = async ({ request }) => {
 //   const { session } = await authenticate.admin(request);
@@ -430,7 +431,14 @@ const OrdersView = () => {
                 </InlineStack>
                 <div style={{ padding: "5px" }}></div>
                 {state.page && state.page.orders.length > 0 ? (
-                  <div>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns:
+                        "repeat(auto-fill, minmax(350px, 1fr))",
+                      gap: "16px",
+                    }}
+                  >
                     {state.page.orders.map((order) => (
                       <OrderCard
                         key={order.id}
@@ -479,6 +487,7 @@ interface OrderCardProps {
 }
 
 const OrderCard: React.FC<OrderCardProps> = ({ order, onSelect }) => {
+  const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
   const {
     id,
     name,
@@ -509,9 +518,22 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onSelect }) => {
                   label=""
                 />
               )}
-              <Text as="p" variant="headingSm">
-                {name} ({orderType})
-              </Text>
+              <div>
+                <InlineStack>
+                  <Text as="p" variant="headingSm">
+                    {name}
+                  </Text>
+                  <div style={{ padding: "5px" }} />
+                  <Badge size="medium">{capitalize(orderType)}</Badge>
+                </InlineStack>
+                <div style={{ padding: "5px" }} />
+                {order.originalId && (
+                  <Text as="p" variant="headingSm">
+                    Greenline ID: #{order.originalId}
+                  </Text>
+                )}
+              </div>
+
               <div
                 style={{
                   marginLeft: "auto",
@@ -522,7 +544,7 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onSelect }) => {
               >
                 <div>
                   <Badge tone={order.synced === true ? "success" : "critical"}>
-                    {order.synced === true ? "Synced" : "Not Synced"}
+                    {order.synced === true ? `Synced` : "Not Synced"}
                   </Badge>
                 </div>
                 <div style={{ padding: "5px" }} />
@@ -572,7 +594,35 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onSelect }) => {
                 </div>
               </InlineStack>
             )}
-            <Text as="p">{order.totalPrice}</Text>
+            <InlineStack blockAlign="start">
+              <Text as="p">{order.totalPrice} EGP</Text>
+              <div
+                style={{
+                  marginLeft: "auto",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "flex-end",
+                }}
+              >
+                {synced && (
+                  <div>
+                    <Button
+                      tone="success"
+                      size="slim"
+                      icon={ShareIcon}
+                      onClick={() => {
+                        window.open(
+                          `https://greenlineco.site/orderinfo?type=merchant&orderId=${order.originalId}`,
+                          "_blank",
+                        );
+                      }}
+                    >
+                      View in Greenline
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </InlineStack>
           </Layout.Section>
         </Layout>
       </Card>

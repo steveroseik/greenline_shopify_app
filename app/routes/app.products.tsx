@@ -385,6 +385,7 @@ async function analyse(
 
       if (response.ok) {
         const jsonResponse: ProductsPage = await response.json();
+        console.log("KSX", jsonResponse);
         productEdges.push(...jsonResponse.data.products.edges);
 
         if (jsonResponse.data.products.pageInfo.hasNextPage) {
